@@ -304,10 +304,10 @@ checkout, in a session there, not in this repository.
 - Reference: v1's `templates/skills/review/SKILL.md` (the executing protocol: probe tests,
   mutation runs, the gate, docs honesty, gate integrity, the verdict comment).
 
-- [ ] **Step 1: Write the failing grammar test** — reads the SKILL.md, asserts it contains
+- [x] **Step 1: Write the failing grammar test** — reads the SKILL.md, asserts it contains
   one example block whose first line matches `REVIEWED_BY_RE` and whose last line matches
   `VERDICT_RE` (import both from `verdict.mjs`), and contains the literal `## Not executed`.
-- [ ] **Step 2: Run → FAIL. Step 3: Write `SKILL.md`** — frontmatter; sections: Scope (the
+- [x] **Step 2: Run → FAIL. Step 3: Write `SKILL.md`** — frontmatter; sections: Scope (the
   PR number given, `gh api` only, never checkout another ref than the PR head the session was
   opened on); Verify by executing (install with a frozen lockfile, run the gate, write
   throwaway probe tests under `tmp/` deleted before the verdict, at least one mutation run per
@@ -319,7 +319,7 @@ checkout, in a session there, not in this repository.
   transcript did not happen); Never (push, merge, close, edit the PR, ask the human — a
   question goes into the verdict as a blocker); Runtime notes (cloud: 2-minute commands, run
   long suites in the background and poll; local: the same protocol).
-- [ ] **Step 4: Run → PASS. Commit** — `feat(skills): review protocol for an executing reviewer`.
+- [x] **Step 4: Run → PASS. Commit** — `feat(skills): review protocol for an executing reviewer`.
 
 ### Task 8: `do`, `ship`, `status` skills and the worker brief
 
@@ -488,3 +488,6 @@ Decisions taken during execution, one line each.
 - Task 6: templates do not name `docs/RUNBOOK.md` before Task 9 creates it (they say "the
   RUNBOOK"), so `npm test` stays green in every commit; the pre-push hook reads the trunk name
   from `{{DEFAULT_BRANCH}}` instead of detecting `origin/HEAD`, and is pnpm-only.
+- Task 7: the verdict comment is posted with the REST comments endpoint and `-F body=@file`
+  (`-F`, not the plan's `-f`: only `-F` reads a file). The `Reviewed-by` line carries the
+  full head sha.
