@@ -1,13 +1,31 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from './hygiene.mjs';
 
 const TITLE = 'feat(feed): add pagination';
+
+// The PR template: the installed `.github/pull_request_template.md` at the repository root
+// when this module runs inside an adopting project (found by walking up to the first
+// `.git` or `package.json`), else the playbook's own copy two levels up.
+function readPrTemplate() {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    if (existsSync(join(dir, '.git')) || existsSync(join(dir, 'package.json'))) {
+      const installed = join(dir, '.github', 'pull_request_template.md');
+      if (existsSync(installed)) return readFileSync(installed, 'utf8');
+      break;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return readFileSync(new URL('../../pull_request_template.md', import.meta.url), 'utf8');
+}
 
 function body(overrides = {}) {
   const sections = {
@@ -180,8 +198,7 @@ test('"No issue" on its own line is the issue link', () => {
 });
 
 test('the unedited PR template fails', () => {
-  const template = readFileSync(new URL('../../pull_request_template.md', import.meta.url), 'utf8');
-  assert.equal(check({ title: TITLE, body: template }).ok, false);
+  assert.equal(check({ title: TITLE, body: readPrTemplate() }).ok, false);
 });
 
 test('tolerates a null body and CRLF line endings', () => {

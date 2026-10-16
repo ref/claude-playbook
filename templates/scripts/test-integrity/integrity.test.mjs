@@ -1,11 +1,29 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { findings, isTestPath } from './integrity.mjs';
+
+// The PR template: the installed `.github/pull_request_template.md` at the repository root
+// when this module runs inside an adopting project (found by walking up to the first
+// `.git` or `package.json`), else the playbook's own copy two levels up.
+function readPrTemplate() {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (;;) {
+    if (existsSync(join(dir, '.git')) || existsSync(join(dir, 'package.json'))) {
+      const installed = join(dir, '.github', 'pull_request_template.md');
+      if (existsSync(installed)) return readFileSync(installed, 'utf8');
+      break;
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return readFileSync(new URL('../../pull_request_template.md', import.meta.url), 'utf8');
+}
 
 function fileDiff(path, lines) {
   return `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1,3 +1,3 @@\n${lines.join('\n')}\n`;
@@ -172,8 +190,7 @@ test('the declaration runs to end of body when it is the last section', () => {
 });
 
 test('the unedited PR template does not declare anything', () => {
-  const template = readFileSync(new URL('../../pull_request_template.md', import.meta.url), 'utf8');
-  const r = findings({ nameStatus: 'D\tsrc/a.test.ts\n', diff: '', body: template });
+  const r = findings({ nameStatus: 'D\tsrc/a.test.ts\n', diff: '', body: readPrTemplate() });
   assert.equal(r.declared, false);
   assert.equal(r.ok, false);
 });
@@ -203,6 +220,31 @@ test('more skip, only and todo forms are findings', () => {
     "  fdescribe('x', () => {});",
     "test.todo('x');",
     "it.fails('x', () => {});",
+  ]) {
+    const diff = fileDiff('src/a.test.ts', [`+${line}`]);
+    const r = findings({ nameStatus: 'M\tsrc/a.test.ts\n', diff, body: NO_BODY });
+    assert.equal(r.items[0]?.kind, 'skip-marker-added', line);
+  }
+});
+
+test('a marker inside a string literal is not a skip marker', () => {
+  for (const line of [
+    `  "it.skip('x', () => {});",`,
+    "  const SKIP = 'describe.only(1)';",
+    '  const t = `test.todo(${name})`;',
+    '  const q = "it\'s .skip here";',
+  ]) {
+    const diff = fileDiff('src/a.test.ts', [`+${line}`]);
+    const r = findings({ nameStatus: 'M\tsrc/a.test.ts\n', diff, body: NO_BODY });
+    assert.deepEqual(r.items, [], line);
+  }
+});
+
+test('a real marker next to a string literal is still a skip marker', () => {
+  for (const line of [
+    "  it.skip('x', () => {});",
+    "  it('x', () => {}); const s = 'a'; it.only('y', () => {});",
+    "  describe.skip(\"it's\", () => {});",
   ]) {
     const diff = fileDiff('src/a.test.ts', [`+${line}`]);
     const r = findings({ nameStatus: 'M\tsrc/a.test.ts\n', diff, body: NO_BODY });

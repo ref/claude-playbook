@@ -12,6 +12,11 @@ const SKIP_RE =
   /\.(?:skip|only|todo|fails)(?:If)?\b|\b(?:xit|xdescribe|xtest)\s*\(|^\s*(?:fit|fdescribe)\s*\(|\b(?:skip|only|todo)\s*:\s*true\b|#\[ignore\b/;
 const ASSERT_RE = /\b(?:expect(?:\.soft|\.poll)?\s*\(|assert\w*\s*[.(]|assert\w*!\s*\()/;
 const COMMENT_RE = /^\s*(?:\/\/|\/\*|\*)/;
+const STRING_RE = /(['"`])(?:\\.|(?!\1).)*\1/g;
+
+// A marker named inside a string literal is data, not a skipped test (this module's own
+// tests spell out every marker as a string). Only the string contents are blanked.
+const hasSkipMarker = (line) => SKIP_RE.test(line.replace(STRING_RE, (m) => m[0] + m[0]));
 
 export function isTestPath(path) {
   if (/\.mdx?$/.test(path)) return false;
@@ -83,7 +88,7 @@ export function findings({ nameStatus, diff, body }) {
 
   for (const file of parseDiff(diff)) {
     if (!isTestPath(file.path) || deleted.has(file.path)) continue;
-    const marker = file.added.find((line) => SKIP_RE.test(line));
+    const marker = file.added.find(hasSkipMarker);
     if (marker !== undefined) {
       items.push({ kind: 'skip-marker-added', path: file.path, detail: marker.trim() });
     }
