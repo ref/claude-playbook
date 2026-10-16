@@ -367,7 +367,7 @@ checkout, in a session there, not in this repository.
   survive, drop every section about cmux, pills, the question page, worktree scripts, the
   local reviewer launcher, the dashboard.
 
-- [ ] **Step 1: Write `AGENTS.md`** — sections, in order: Workflow (trunk, PRs, the human
+- [x] **Step 1: Write `AGENTS.md`** — sections, in order: Workflow (trunk, PRs, the human
   approves, agents never approve or merge); Your boundaries (v1); Specs and plans (v1 minus
   the page); Branch discipline (v1); Feature branches (v1); Magnet files (v1); Shared
   mutable state (v1, marked optional); Getting to the trunk (the gate line with pnpm, the
@@ -377,7 +377,7 @@ checkout, in a session there, not in this repository.
   never pushes); Model routing (principles only, pointer to `.agents/routing.md`); Cloud
   sessions (commit as you go, 2-minute commands, REST only, no local DB); After a merge
   (v1); Never (v1 minus deleted modules); Tooling decision records (v1, empty).
-- [ ] **Step 2: Write `RUNBOOK.md`** — Daily development (`/do <n>`, the four touchpoints);
+- [x] **Step 2: Write `RUNBOOK.md`** — Daily development (`/do <n>`, the four touchpoints);
   Approving and merging (your approval is the merge; what the `review-verdict` status
   description means, including "approve carried from"; after "Update branch" re-approve, no
   re-test when carried); When a verdict never lands (run `/review <n>` yourself in a
@@ -385,7 +385,7 @@ checkout, in a session there, not in this repository.
   `.agents/routing.md`); Dependency cooldowns (v1); CI shape (v1, with the two new checks);
   Emergency overrides (v1); When something looks broken (v1's table minus cmux rows, plus
   rows for a missing `review-verdict` status and a failed `test-integrity`).
-- [ ] **Step 3: Run `npm test` → PASS (no stray placeholders, every referenced path
+- [x] **Step 3: Run `npm test` → PASS (no stray placeholders, every referenced path
   exists). Commit** — `feat(templates): AGENTS.md and RUNBOOK.md for v2`.
 
 ### Task 10: SETUP (rest), ADOPT, cloud setup script, `playbook-update` and `playbook-compact`
