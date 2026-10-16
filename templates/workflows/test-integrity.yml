@@ -1,0 +1,39 @@
+name: test-integrity
+
+# Fails when a PR deletes a test file, adds a skip/only marker or removes assertions,
+# unless the PR body declares it under `## Tests changed`. The ruleset requires this job
+# by its name. Re-runs on `edited` so that a declaration added to the body is honored
+# without a new commit.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  test-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Check test integrity
+        env:
+          # The body is untrusted input: read through the environment, never interpolated.
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          node .agents/scripts/test-integrity/integrity.mjs \
+            --base "origin/$BASE_REF" --head HEAD --body-file "$RUNNER_TEMP/pr-body.md"

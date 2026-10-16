@@ -201,7 +201,7 @@ checkout, in a session there, not in this repository.
   `node integrity.mjs --base <ref> --head <ref> --body-file <file>` runs the two git
   commands itself, prints JSON, exits 0 when `ok`.
 
-- [ ] **Step 1: Write the failing tests**:
+- [x] **Step 1: Write the failing tests**:
   - `isTestPath` — true for `src/a.test.ts`, `tests/b.ts`, `src/__tests__/c.tsx`,
     `tests/d.rs`, `e.spec.mjs`; false for `src/a.ts`, `docs/testing.md`.
   - `deleted test file is a finding` — `D\tsrc/a.test.ts`.
@@ -214,19 +214,19 @@ checkout, in a session there, not in this repository.
     line that is not `none` → `declared: true, ok: true`.
   - `"none" under Tests changed does not declare a deletion` → `declared: false, ok: false`.
   - `no findings is ok without a declaration`.
-- [ ] **Step 2: Run → FAIL.**
-- [ ] **Step 3: Implement `integrity.mjs`** — parse name-status lines by tab; parse the diff
+- [x] **Step 2: Run → FAIL.**
+- [x] **Step 3: Implement `integrity.mjs`** — parse name-status lines by tab; parse the diff
   into per-file hunks by `diff --git` headers; markers and `expect(`/`assert` counted on
   `+`/`-` lines only; the declaration is the text between `## Tests changed` and the next
   `## ` heading, trimmed, non-empty and not equal to `none` (case-insensitive).
-- [ ] **Step 4: Run → PASS.**
-- [ ] **Step 5: Write `templates/workflows/test-integrity.yml`** — on `pull_request`
+- [x] **Step 4: Run → PASS.**
+- [x] **Step 5: Write `templates/workflows/test-integrity.yml`** — on `pull_request`
   (`opened`, `synchronize`, `reopened`, `edited`); permissions `contents: read`,
   `pull-requests: read`; checkout `fetch-depth: 0`; write the PR body from
   `github.event.pull_request.body` to a file; run the CLI with `--base origin/<base>`
   `--head HEAD`; the job is named `test-integrity` and its own exit code is the check (the
   ruleset requires it by that job name).
-- [ ] **Step 6: `actionlint` → no findings. Commit** —
+- [x] **Step 6: `actionlint` → no findings. Commit** —
   `feat(test-integrity): weakened-test detection script and workflow`.
 
 ### Task 5: PR hygiene script and the ported workflows

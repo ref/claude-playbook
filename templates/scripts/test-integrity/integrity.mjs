@@ -1,0 +1,133 @@
+// Detects weakened tests in a pull request: deleted test files, added skip/only markers,
+// fewer assertions. A finding is acceptable only when the PR body declares it under
+// `## Tests changed`.
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+
+const TEST_DIRS = new Set(['tests', 'test', '__tests__']);
+const SKIP_RE = /\.(?:skip|only)\s*\(|\b(?:xit|xdescribe|xtest)\s*\(|#\[ignore\b/;
+const ASSERT_RE = /\b(?:expect\s*\(|assert\w*\s*[.(]|assert\w*!\s*\()/;
+
+export function isTestPath(path) {
+  if (/\.mdx?$/.test(path)) return false;
+  const parts = path.split('/');
+  const name = parts.pop();
+  return /\.(?:test|spec)\./.test(name) || parts.some((part) => TEST_DIRS.has(part));
+}
+
+function parseNameStatus(text) {
+  return String(text ?? '')
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map((line) => {
+      const [status, ...paths] = line.split('\t');
+      return { status, paths };
+    });
+}
+
+// Per-file added and removed lines, from the headers `diff --git a/<x> b/<y>`.
+function parseDiff(text) {
+  const files = [];
+  let current = null;
+  for (const line of String(text ?? '').split(/\r?\n/)) {
+    const header = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
+    if (header) {
+      current = { path: header[2], added: [], removed: [] };
+      files.push(current);
+      continue;
+    }
+    if (!current || line.startsWith('+++') || line.startsWith('---')) continue;
+    if (line.startsWith('+')) current.added.push(line.slice(1));
+    else if (line.startsWith('-')) current.removed.push(line.slice(1));
+  }
+  return files;
+}
+
+function isDeclared(body) {
+  const lines = String(body ?? '').split(/\r?\n/);
+  const start = lines.findIndex((line) => /^##\s+tests changed\s*$/i.test(line));
+  if (start === -1) return false;
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => /^##\s/.test(line));
+  const text = (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
+  return text !== '' && text.toLowerCase() !== 'none';
+}
+
+export function findings({ nameStatus, diff, body }) {
+  const items = [];
+  const deleted = new Set();
+
+  for (const { status, paths } of parseNameStatus(nameStatus)) {
+    if (status.startsWith('D') && isTestPath(paths[0])) {
+      deleted.add(paths[0]);
+      items.push({ kind: 'deleted-test-file', path: paths[0], detail: 'deleted' });
+    } else if (status.startsWith('R') && isTestPath(paths[0]) && !isTestPath(paths[1])) {
+      deleted.add(paths[0]);
+      items.push({
+        kind: 'deleted-test-file',
+        path: paths[0],
+        detail: `renamed out of the test paths to ${paths[1]}`,
+      });
+    }
+  }
+
+  for (const file of parseDiff(diff)) {
+    if (!isTestPath(file.path) || deleted.has(file.path)) continue;
+    const marker = file.added.find((line) => SKIP_RE.test(line));
+    if (marker !== undefined) {
+      items.push({ kind: 'skip-marker-added', path: file.path, detail: marker.trim() });
+    }
+    const net =
+      file.removed.filter((line) => ASSERT_RE.test(line)).length -
+      file.added.filter((line) => ASSERT_RE.test(line)).length;
+    if (net > 0) {
+      items.push({ kind: 'assertions-removed', path: file.path, detail: String(net) });
+    }
+  }
+
+  const declared = isDeclared(body);
+  return { items, declared, ok: items.length === 0 || declared };
+}
+
+function git(args) {
+  const res = spawnSync('git', ['-c', 'core.quotepath=off', ...args], {
+    encoding: 'utf8',
+    maxBuffer: 256 * 1024 * 1024,
+  });
+  if (res.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${res.stderr}`);
+  return res.stdout;
+}
+
+function main(argv) {
+  const args = {};
+  for (let i = 0; i < argv.length; i += 2) {
+    if (!argv[i].startsWith('--') || argv[i + 1] === undefined) break;
+    args[argv[i].slice(2)] = argv[i + 1];
+  }
+  if (!args.base || !args.head || !args['body-file']) {
+    console.error('usage: integrity.mjs --base <ref> --head <ref> --body-file <file>');
+    return 1;
+  }
+  const range = `${args.base}...${args.head}`;
+  const nameStatus = git(['diff', '--name-status', '-M', range]);
+  const testPaths = parseNameStatus(nameStatus)
+    .flatMap(({ paths }) => paths)
+    .filter(isTestPath);
+  const diff = testPaths.length
+    ? git(['diff', '-M', range, '--', ...[...new Set(testPaths)].map((p) => `:(literal)${p}`)])
+    : '';
+  const result = findings({ nameStatus, diff, body: readFileSync(args['body-file'], 'utf8') });
+  console.log(JSON.stringify(result, null, 2));
+  if (!result.ok) {
+    for (const item of result.items) {
+      console.error(`${item.kind}: ${item.path} (${item.detail})`);
+    }
+    console.error('Declare each under "## Tests changed" in the PR body, with the reason.');
+  }
+  return result.ok ? 0 : 1;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exitCode = main(process.argv.slice(2));
+}
