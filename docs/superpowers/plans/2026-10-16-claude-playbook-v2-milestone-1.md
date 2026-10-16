@@ -279,23 +279,23 @@ checkout, in a session there, not in this repository.
   CLI walks `templates/` and fails on any placeholder other than `{{DEFAULT_BRANCH}}` or any
   broken reference; a `node:test` case runs the CLI over the repository.
 
-- [ ] **Step 1: Write the PR template** — the headings from Global Constraints in order,
+- [x] **Step 1: Write the PR template** — the headings from Global Constraints in order,
   with one-line hints under each; `## How to test by hand` hint says "at most five steps,
   the only section the human reads before testing".
-- [ ] **Step 2: Port `dependabot.yml`** (npm + github-actions, grouped weekly, cooldown 3
+- [x] **Step 2: Port `dependabot.yml`** (npm + github-actions, grouped weekly, cooldown 3
   days minor/patch, 14 majors; no cargo block) and `githooks/pre-push` (refuse pushes to
   `{{DEFAULT_BRANCH}}` unless `ALLOW_DIRECT_PUSH=1`; run the static gate unless
   `SKIP_PUSH_GATE=1`). Verify: `sh -n templates/githooks/pre-push`.
-- [ ] **Step 3: Write `settings.json`** — `attribution` keys empty; `permissions.allow` for
+- [x] **Step 3: Write `settings.json`** — `attribution` keys empty; `permissions.allow` for
   `Bash(node .agents/scripts/*:*)`; no hooks.
-- [ ] **Step 4: Write `worktreeinclude`** (comment header; `.env` and `.env.local`
+- [x] **Step 4: Write `worktreeinclude`** (comment header; `.env` and `.env.local`
   as the two default lines) and `CLAUDE.md` (`@AGENTS.md` and one Claude-only line: run
   `/code-review` before `/ship`). No `CODEOWNERS` template: ADOPT writes it from the
   owner's login (Task 10).
-- [ ] **Step 5: Write the failing `check-templates` tests, then the script, run → PASS;
+- [x] **Step 5: Write the failing `check-templates` tests, then the script, run → PASS;
   add `node templates/scripts/check-templates.mjs` to `package.json` `test` after
   `node --test`.**
-- [ ] **Step 6: Commit** — `feat(templates): PR template, dependabot, hook, settings, worktreeinclude, template checks`.
+- [x] **Step 6: Commit** — `feat(templates): PR template, dependabot, hook, settings, worktreeinclude, template checks`.
 
 ### Task 7: The `review` skill
 
@@ -485,3 +485,6 @@ Decisions taken during execution, one line each.
   v1 are dropped (a comment points at `services:`); actions pinned by sha.
 - Task 5: Dependabot exemption lives in `hygiene.mjs` (title checked, body skipped), not in
   a workflow `if:`, so the required `pr-hygiene` check always reports.
+- Task 6: templates do not name `docs/RUNBOOK.md` before Task 9 creates it (they say "the
+  RUNBOOK"), so `npm test` stays green in every commit; the pre-push hook reads the trunk name
+  from `{{DEFAULT_BRANCH}}` instead of detecting `origin/HEAD`, and is pnpm-only.

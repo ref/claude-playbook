@@ -1,0 +1,4 @@
+# Gitignored files the Claude desktop app copies into every new worktree (.gitignore syntax,
+# one pattern per line). Only files that are already gitignored are copied.
+.env
+.env.local
