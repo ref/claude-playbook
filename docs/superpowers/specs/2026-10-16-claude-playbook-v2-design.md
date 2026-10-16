@@ -129,21 +129,26 @@ vendor diversity. v2 keeps those levers mandatory and makes the other family a m
 4. **"Go".** The manager spawns workers: one per sub-issue, in parallel where the plan marks
    phases independent, serial otherwise. The brief is a fixed template (section 6.6).
 5. **The worker** cuts its branch from the base (trunk or the feature branch), works
-   test-first, opens the PR as a DRAFT early (so CI runs as it goes), runs the full gate,
-   runs `/code-review` on its own diff and fixes what it finds (the same-family pre-gate;
-   cheap, catches the obvious), fills the template (section 6.4), marks the PR ready for
-   review, and reports to the manager. Nothing reviews a draft.
-6. **The reviewer** runs when the PR is marked ready and on every later push; the
-   `review-verdict` check passes only when an approve comment by the reviewer identity
-   exists for the head sha — or for an earlier sha whose content, measured against the
-   base, is identical to the head's (a base-only "Update branch" keeps its approve; any
-   content change needs a fresh verdict). A blocker reaches the worker through the app's
-   auto-fix of review comments, or the manager relays it.
+   test-first, runs the full gate, runs `/code-review` on its own diff and fixes what it
+   finds (the same-family pre-gate; cheap, catches the obvious), and only then opens the
+   PR with the template filled (section 6.4) and reports to the manager. No draft PRs: the
+   cloud's GitHub proxy has no GraphQL, and a draft cannot be marked ready without it. Every
+   GitHub call from a cloud session is `gh api` (REST): creating the PR, commenting,
+   setting a status.
+6. **The reviewer** runs when the PR opens and on every later push; the `review-verdict`
+   status (a commit status, set by the workflow on the head sha, so that it can be
+   re-evaluated when the verdict comment lands) passes only when an approve comment by the
+   reviewer identity exists for the head sha — or for an earlier sha whose content,
+   measured against the base, is identical to the head's (a base-only "Update branch"
+   keeps its approve; any content change needs a fresh verdict). A blocker reaches the
+   worker through the app's auto-fix of review comments, or the manager relays it.
 7. **Acceptance.** The manager tells the human: PR ready, here is what to test by hand (the
    PR body's "How to test by hand", at most five steps). The human tests — the branch pulled
-   locally, or a local worktree the app opens — and merges: the GitHub button, or the word
-   "merge" to the manager, which runs the squash merge. Either way the human's explicit word
-   is the merge. The worktree is archived by the app.
+   locally, or a local worktree the app opens — and APPROVES the PR on GitHub. Because the
+   PR's author is the agent identity, the owner's approving review is possible and the
+   ruleset requires it (6.3): the approval IS the human's merge decision, machine-enforced,
+   and the merge itself may be the human's button or auto-merge. The worktree is archived
+   by the app.
 8. **Repeat** until the umbrella's checklist is ticked. Then `/ship` on the feature branch
    merges the trunk in, runs the gate and opens the feature PR; it gets an integration
    review from the routine; the human runs `/audit` on the feature (section 6.8), tries the
@@ -153,20 +158,27 @@ vendor diversity. v2 keeps those levers mandatory and makes the other family a m
 
 - **Identities (owner to confirm, section 8).** GitHub must be able to tell an agent from
   the owner, or neither of the next two bullets is a machine guarantee. Three identities:
-  the OWNER (the human's own shell and the GitHub UI, nowhere else); the AGENT (a GitHub
-  App or machine user whose token lives in the project's worker cloud environment and in a
-  desktop session preset named `agent`, which every manager and local worker session uses);
-  the REVIEWER (a second App or machine user with comment and status rights only, no push,
-  whose token lives in a separate reviewer cloud environment and in a `reviewer` preset).
-  If the owner declines the extra identities, v2 falls back to v1's position: gate files are
-  guarded by prose and by the reviewer's gate-integrity item, and the verdict's author is
-  not verifiable — documented in RUNBOOK as a known weakness.
-- **Ruleset on the trunk**: PR required; required checks `checks` (or its docs twin),
-  `pr-hygiene`, `security`, `test-integrity`, `review-verdict`; branches must be up to date
-  before merging (the stale-squash hazard is real and no human watches "Update branch"
-  anymore; the carried-over approve in 6.2 step 6 keeps this from costing a re-review per
-  sibling merge); squash only; no force push; no deletion. Feature branches stay
-  unprotected on purpose (v1's reasoning: the trunk merge into them must not be refused).
+  the OWNER (the human's own shell and the GitHub UI, nowhere else); the AGENT (a machine
+  user — a second GitHub account with a fine-grained token: contents write, pull requests
+  write — whose token lives in the project's worker cloud environment and in a desktop
+  session preset named `agent`, which every manager and local worker session uses); the
+  REVIEWER (a third account: contents read, pull requests write for comments, commit
+  statuses write; no push, and its approving review never counts because it is not a code
+  owner; its token lives in a separate reviewer cloud environment and in a `reviewer`
+  preset). Machine users rather than GitHub Apps because App tokens expire hourly while
+  presets and environments hold long-lived secrets. The owner decided for the identities
+  (section 8); the fallback without them would have been v1's position — gate files
+  guarded by prose, the verdict's author unverifiable.
+- **Ruleset on the trunk**: PR required; one approving review required, from a code owner
+  (`CODEOWNERS` names the owner for `*`), stale approvals dismissed on push — this is the
+  human merge as a machine rule, possible only because PRs are authored by the agent
+  identity; required status checks `checks` (or its docs twin), `pr-hygiene`, `security`,
+  `test-integrity`, `review-verdict`; branches must be up to date before merging (the
+  stale-squash hazard is real and no human watches "Update branch" anymore; the
+  carried-over approve in 6.2 step 6 keeps this from costing a re-review per sibling
+  merge, and the owner's re-approval after a base-only update is one click with no
+  re-test); squash only; no force push; no deletion. Feature branches stay unprotected on
+  purpose (v1's reasoning: the trunk merge into them must not be refused).
 - **Protected paths** (push ruleset, "restrict file paths"; availability depends on the
   account plan — confirm on the first adopter): `.github/workflows/**`, `.githooks/**`,
   `.agents/**`, `AGENTS.md`, `CLAUDE.md`, `.claude/settings.json`. Bypass list: the owner
@@ -278,9 +290,11 @@ only the principles.
   script with pnpm, cargo, a test database), the machine (desktop app settings, worktree
   options, the `agent` and `reviewer` session presets). Desktop mods are the owner's
   personal choice and are not part of the playbook.
-- Skills in the playbook itself: `playbook-adopt` (installs into a project, Rule 0 from v1:
-  never overwrite without showing the diff; also removes v1's deleted files from a repo that
-  had v1), `playbook-update` (sync against `.agents/playbook.lock`), `playbook-compact`.
+- `docs/ADOPT.md`: the instruction an agent follows to install into a project (a document,
+  not a skill — a skill cannot be invoked before it is installed): Rule 0 from v1, never
+  overwrite without showing the diff; it also removes v1's deleted files from a repo that
+  had v1. Installed skills: `playbook-update` (sync against `.agents/playbook.lock`) and
+  `playbook-compact`.
 - No scripts except `test-integrity` and the optional schema-lock, carried from v1.
 
 ## 7. Left to the builder
