@@ -93,6 +93,32 @@ test('scanTemplates accepts {{DEFAULT_BRANCH}} and whitelisted install-time path
   assert.deepEqual(scanTemplates(dir), []);
 });
 
+const goodSkill = (name) => `---\nname: ${name}\ndescription: Does a thing.\n---\n\nbody\n`;
+
+test('scanTemplates requires skill frontmatter whose name matches the directory', () => {
+  const dir = fixture({
+    'skills/a/SKILL.md': goodSkill('a'),
+    'skills/b/SKILL.md': goodSkill('other'),
+    'skills/c/SKILL.md': '---\nname: c\n---\n',
+    'skills/d/SKILL.md': 'no frontmatter',
+  });
+  const problems = scanTemplates(dir).join('\n');
+  assert.doesNotMatch(problems, /skills\/a\//);
+  assert.match(problems, /skills\/b\/SKILL\.md: .*name/);
+  assert.match(problems, /skills\/c\/SKILL\.md: .*description/);
+  assert.match(problems, /skills\/d\/SKILL\.md: .*frontmatter/);
+});
+
+test('scanTemplates keeps GraphQL gh subcommands out of every skill but status', () => {
+  const dir = fixture({
+    'skills/ship/SKILL.md': `${goodSkill('ship')}\nrun gh pr create\n`,
+    'skills/status/SKILL.md': `${goodSkill('status')}\nrun gh pr list\n`,
+  });
+  const problems = scanTemplates(dir).join('\n');
+  assert.match(problems, /skills\/ship\/SKILL\.md: .*gh api/);
+  assert.doesNotMatch(problems, /skills\/status/);
+});
+
 test('CLI exits 1 on a broken template tree and 0 on the repository', () => {
   const broken = fixture({ 'AGENTS.md': '{{NOPE}}' });
   assert.equal(spawnSync(process.execPath, [cli, broken], { encoding: 'utf8' }).status, 1);

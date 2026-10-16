@@ -330,13 +330,13 @@ checkout, in a session there, not in this repository.
 - Reference: v1's `do` and `ship` skills (the stage gate, the spec/plan cycle, the umbrella
   checklist, the feature-branch rules, the ship tail).
 
-- [ ] **Step 1: Write `routing.md`** — the table from spec 6.7 with the current model
+- [x] **Step 1: Write `routing.md`** — the table from spec 6.7 with the current model
   names in a second column (`Fable 5.1`, `Opus 5.5`, `Sonnet 5.5`) and the effort levels;
   one line saying `AGENTS.md` carries the principles and this file the names.
-- [ ] **Step 2: Write `worker-brief.md`** — the template from spec 6.6: first line
+- [x] **Step 2: Write `worker-brief.md`** — the template from spec 6.6: first line
   `/model <tier>` `/effort <level>`; then the fields as `**Field:** value` lines; a final
   "Report" line: `one line to the manager: PR number, state, blocking item`.
-- [ ] **Step 3: Write `do/SKILL.md`** — frontmatter; Stage gate (v1's three outcomes);
+- [x] **Step 3: Write `do/SKILL.md`** — frontmatter; Stage gate (v1's three outcomes);
   Spec and plan (the manager writes both, commits them in a docs PR with `Refs #<seed>`,
   files sub-issues with the umbrella checklist line form `- [ ] #<n> — <title>`, asks the
   human "feature branch or one by one", writes `Branch: feature/<topic>` into the umbrella);
@@ -347,16 +347,16 @@ checkout, in a session there, not in this repository.
   worker; reports to the human: "PR #n ready, test: …"); Restart (how to resume from the
   umbrella issue after a context loss: read the checklist, the open PRs, the latest
   verdicts). The manager never writes product code.
-- [ ] **Step 4: Write `ship/SKILL.md`** — for a worker: refuse on the default branch or a
+- [x] **Step 4: Write `ship/SKILL.md`** — for a worker: refuse on the default branch or a
   dirty tree; rebase onto the base; run the gate; run `/code-review` and fix findings;
   fill the PR body sections from the template with real evidence (the gate's final lines,
   the test names added, screenshots for UI); create the PR through
   `gh api repos/<o>/<r>/pulls` (REST) against the base; print the PR number as the report.
   On a feature branch: merge the trunk in first, then the feature PR with `Closes #<umbrella>`.
-- [ ] **Step 5: Write `status/SKILL.md`** — desktop only (`gh pr list`, `gh issue list`
+- [x] **Step 5: Write `status/SKILL.md`** — desktop only (`gh pr list`, `gh issue list`
   allowed): feature branches against umbrellas, PRs by stage from their `review-verdict`
   status and checks, open issues; answer in the chat in ≤15 lines.
-- [ ] **Step 6: Run `npm test` (check-templates verifies the references) → PASS. Commit** —
+- [x] **Step 6: Run `npm test` (check-templates verifies the references) → PASS. Commit** —
   `feat(skills): do, ship, status; worker brief and routing table`.
 
 ### Task 9: `AGENTS.md` and `RUNBOOK.md`
@@ -491,3 +491,7 @@ Decisions taken during execution, one line each.
 - Task 7: the verdict comment is posted with the REST comments endpoint and `-F body=@file`
   (`-F`, not the plan's `-f`: only `-F` reads a file). The `Reviewed-by` line carries the
   full head sha.
+- Task 8: `do` and `ship` use `gh api` only (not just `ship`), so the manager works the same
+  on any runtime; `check-templates` gained two guards (skill frontmatter, no `gh pr`/`gh issue`
+  outside `status`). Routing names: strongest = Fable 5.1, mid (worker, reviewer) = Opus 5.5,
+  Sonnet 5.5 only for phases the plan marks mechanical.

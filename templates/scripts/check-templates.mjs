@@ -17,6 +17,8 @@ const INSTALL_TIME_PATHS = [
   '.agents/audit-external-prompt.md',
 ];
 
+const INSTALL_TIME_DIRS = ['docs/specs', 'docs/plans', '.claude/skills'];
+
 const SINGLE_FILE_MAP = {
   'RUNBOOK.md': 'docs/RUNBOOK.md',
   'pull_request_template.md': '.github/pull_request_template.md',
@@ -53,6 +55,8 @@ export function brokenRefs(text, existingPaths) {
     const rest = text.slice(match.index + match[0].length);
     // A glob, a placeholder or a variable continues the path; it is not a file name.
     if (/^\/?[*<{$]/.test(rest)) continue;
+    // Anything under a directory the project fills in itself (specs, plans) is fine.
+    if (INSTALL_TIME_DIRS.some((dir) => path.startsWith(`${dir}/`))) continue;
     if (!existingPaths.has(path)) broken.add(path);
   }
   return [...broken];
@@ -90,6 +94,30 @@ function isScanned(templatePath) {
   return !/(^|\/)check-templates[^/]*$/.test(templatePath) && !templatePath.endsWith('.test.mjs');
 }
 
+// Every skill: frontmatter with a `name:` equal to its directory and a `description:`.
+// Only `status` runs exclusively on the desktop and may call the GraphQL `gh` subcommands.
+function skillProblems(templatePath, text) {
+  const match = /^skills\/([^/]+)\/SKILL\.md$/.exec(templatePath);
+  if (!match) return [];
+  const problems = [];
+  const front = /^---\n([\s\S]*?)\n---\n/.exec(text);
+  if (!front) {
+    problems.push(`${templatePath}: missing frontmatter`);
+  } else {
+    const name = /^name: (.+)$/m.exec(front[1]);
+    if (!name || name[1].trim() !== match[1]) {
+      problems.push(`${templatePath}: frontmatter name must be "${match[1]}"`);
+    }
+    if (!/^description: .+/m.test(front[1])) {
+      problems.push(`${templatePath}: frontmatter needs a description`);
+    }
+  }
+  if (match[1] !== 'status' && /\bgh (pr|issue) /.test(text)) {
+    problems.push(`${templatePath}: use gh api (REST); gh pr and gh issue are GraphQL`);
+  }
+  return problems;
+}
+
 export function scanTemplates(root) {
   const files = walk(root);
   const existing = existingInstalledPaths(root, files);
@@ -98,6 +126,7 @@ export function scanTemplates(root) {
     const templatePath = relative(root, file).split(sep).join('/');
     if (!isScanned(templatePath)) continue;
     const text = readFileSync(file, 'utf8');
+    problems.push(...skillProblems(templatePath, text));
     for (const token of placeholders(text)) {
       if (!ALLOWED_PLACEHOLDERS.has(token)) problems.push(`${templatePath}: unexpected placeholder ${token}`);
     }
