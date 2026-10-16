@@ -74,5 +74,10 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # The playbook's own script modules (.agents/scripts/**). They are node:test files that
+      # the project's test runner does not collect, so nothing else runs them.
+      - name: Playbook script tests
+        run: node --test ".agents/scripts/**/*.test.mjs"
+
       - name: Test
         run: pnpm test
