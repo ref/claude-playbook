@@ -150,7 +150,7 @@ checkout, in a session there, not in this repository.
   prints the result as JSON and exits 0 when `ok`, 1 otherwise.
 - Consumed by: Task 7 (the skill quotes the grammar), Task 9 (RUNBOOK explains the status).
 
-- [ ] **Step 1: Write the failing tests** in `verdict.test.mjs`:
+- [x] **Step 1: Write the failing tests** in `verdict.test.mjs`:
   - `approve for the head passes` — one reviewer comment, `head` = headSha → `ok: true`.
   - `blocker for the head fails` → `ok: false, state: 'blocker'`.
   - `no verdict fails with reason "no verdict for <sha>"`.
@@ -162,15 +162,15 @@ checkout, in a session there, not in this repository.
   - `does not carry across different patch-id` → `ok: false`.
   - `malformed Reviewed-by line is not a verdict` (missing `head`) → `state: 'none'`.
   - `CLI exits 1 on blocker` — spawn `node verdict.mjs …` with fixture files.
-- [ ] **Step 2: Run `node --test "templates/scripts/review-verdict/*.test.mjs"` → FAIL** (module missing).
-- [ ] **Step 3: Implement `verdict.mjs`** — the regexes from Global Constraints; parse only
+- [x] **Step 2: Run `node --test "templates/scripts/review-verdict/*.test.mjs"` → FAIL** (module missing).
+- [x] **Step 3: Implement `verdict.mjs`** — the regexes from Global Constraints; parse only
   comments whose `login` is in `reviewerLogins` and whose body matches both regexes; for each,
   resolve `effectiveFor = sha === headSha || (patchIds[sha] && patchIds[sha] === patchIds[headSha])`;
   take the latest by `createdAt` among those effective for the head; `ok` iff its verdict is
   `approve`. Reason strings: `"approve for <sha>"`, `"approve carried from <sha>"`,
   `"blocker for <sha>"`, `"no verdict for <sha>"`.
-- [ ] **Step 4: Run the tests → PASS.**
-- [ ] **Step 5: Write `templates/workflows/review-verdict.yml`** — triggers:
+- [x] **Step 4: Run the tests → PASS.**
+- [x] **Step 5: Write `templates/workflows/review-verdict.yml`** — triggers:
   `pull_request` (`opened`, `synchronize`, `reopened`) and `issue_comment` (`created`,
   `edited`, limited by an `if:` to comments on PRs). Permissions: `contents: read`,
   `pull-requests: read`, `statuses: write`. Steps: resolve the PR number and head sha
@@ -183,7 +183,7 @@ checkout, in a session there, not in this repository.
   reason as the description, `success`/`failure` by exit code. The job reports failure only
   through the status, never through its own exit code (so a failed job does not double up).
 - [ ] **Step 6: Run `actionlint templates/workflows/review-verdict.yml` → no findings.**
-- [ ] **Step 7: Commit** — `feat(review-verdict): verdict evaluation script and workflow`.
+- [x] **Step 7: Commit** — `feat(review-verdict): verdict evaluation script and workflow`.
 
 ### Task 4: `test-integrity` script and workflow
 

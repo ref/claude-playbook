@@ -1,0 +1,115 @@
+name: review-verdict
+
+# Passes only when the reviewer identity has posted an approve verdict for the PR's head
+# sha, or for an earlier sha whose content against the base is identical (a base-only
+# "Update branch" or a rebase keeps its approve). The result is a commit STATUS named
+# `review-verdict` on the head sha, because a comment that lands later must be able to
+# re-evaluate it; the ruleset requires that status context.
+#
+# The job reports failure only through the status, never through its own exit code, so a
+# failed evaluation does not show up twice. The script that evaluates is always checked
+# out from the default branch, never from the PR.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+  statuses: write
+
+concurrency:
+  group: review-verdict-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review-verdict:
+    # Comments on plain issues are not ours.
+    if: github.event_name == 'pull_request' || github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
+      - name: Evaluate the verdict and set the status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          REVIEWER_LOGINS: ${{ vars.REVIEWER_LOGINS }}
+        run: |
+          set -eu
+          work="$RUNNER_TEMP/review-verdict"
+          mkdir -p "$work"
+
+          head_sha=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha)
+          base_ref=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .base.ref)
+
+          post_status() {
+            gh api -X POST "repos/$REPO/statuses/$head_sha" \
+              -f state="$1" -f context=review-verdict -f description="${2:0:140}" > /dev/null
+          }
+
+          if [ -z "$REVIEWER_LOGINS" ]; then
+            post_status failure "repository variable REVIEWER_LOGINS is not set"
+            exit 0
+          fi
+
+          # One JSON array of {login, body, createdAt}.
+          gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
+            --jq '.[] | {login: .user.login, body: .body, createdAt: .created_at}' \
+            | jq -s . > "$work/comments.json"
+
+          git fetch --quiet origin "$base_ref" "pull/$PR_NUMBER/head"
+
+          # Shas named in the reviewer's own comments, plus the head.
+          reviewers_json=$(printf '%s' "$REVIEWER_LOGINS" | jq -R 'split(",") | map(ascii_downcase)')
+          named=$(jq -r --argjson r "$reviewers_json" '
+              .[]
+              | select((.login | ascii_downcase) as $l | $r | index($l))
+              | .body | split("\n")[0]
+              | capture("^Reviewed-by: claude/[^ ,]+, head (?<sha>[^ ,\\r]+)")
+              | .sha' "$work/comments.json" | sort -u)
+
+          printf '{}' > "$work/patch-ids.json"
+          add_patch_id() {
+            sha="$1"
+            case "$sha" in *[!0-9a-f]* | "") return 0 ;; esac
+            [ "${#sha}" -ge 7 ] || return 0
+            git cat-file -e "$sha^{commit}" 2>/dev/null || git fetch --quiet origin "$sha" 2>/dev/null || true
+            git cat-file -e "$sha^{commit}" 2>/dev/null || return 0
+            merge_base=$(git merge-base "origin/$base_ref" "$sha" 2>/dev/null) || return 0
+            id=$(git diff "$merge_base" "$sha" | git patch-id --stable | cut -d' ' -f1)
+            [ -n "$id" ] || return 0
+            jq --arg sha "$sha" --arg id "$id" '.[$sha] = $id' "$work/patch-ids.json" > "$work/patch-ids.tmp"
+            mv "$work/patch-ids.tmp" "$work/patch-ids.json"
+          }
+          add_patch_id "$head_sha"
+          for sha in $named; do add_patch_id "$sha"; done
+
+          set +e
+          result=$(node .agents/scripts/review-verdict/verdict.mjs \
+            --head "$head_sha" --reviewers "$REVIEWER_LOGINS" \
+            --comments "$work/comments.json" --patch-ids "$work/patch-ids.json")
+          code=$?
+          set -e
+
+          reason=$(printf '%s' "$result" | jq -r '.reason // "evaluation failed"' 2>/dev/null || echo "evaluation failed")
+          echo "$result"
+          if [ "$code" -eq 0 ]; then
+            post_status success "$reason"
+          else
+            post_status failure "$reason"
+          fi
