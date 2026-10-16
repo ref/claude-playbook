@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -169,6 +169,58 @@ test('the declaration runs to end of body when it is the last section', () => {
     body: '## Evidence\n\nx\n\n## Tests changed\n\nRemoved a.test.ts: obsolete.',
   });
   assert.equal(r.declared, true);
+});
+
+test('the unedited PR template does not declare anything', () => {
+  const template = readFileSync(new URL('../../pull_request_template.md', import.meta.url), 'utf8');
+  const r = findings({ nameStatus: 'D\tsrc/a.test.ts\n', diff: '', body: template });
+  assert.equal(r.declared, false);
+  assert.equal(r.ok, false);
+});
+
+test('HTML comments and "none"-like text do not declare', () => {
+  for (const text of [
+    '<!-- Removed a.test.ts, it is obsolete -->',
+    'None.',
+    '`none`',
+    '- none',
+    'N/A',
+    'n/a',
+    '* None',
+  ]) {
+    const r = findings({ nameStatus: 'D\tsrc/a.test.ts\n', diff: '', body: declared(text) });
+    assert.equal(r.declared, false, text);
+  }
+});
+
+test('more skip, only and todo forms are findings', () => {
+  for (const line of [
+    "it.only.each([1])('x', () => {});",
+    "describe.skip.each([1])('x', () => {});",
+    "it.skipIf(cond)('x', () => {});",
+    "test('x', { skip: true }, () => {});",
+    "fit('x', () => {});",
+    "  fdescribe('x', () => {});",
+    "test.todo('x');",
+    "it.fails('x', () => {});",
+  ]) {
+    const diff = fileDiff('src/a.test.ts', [`+${line}`]);
+    const r = findings({ nameStatus: 'M\tsrc/a.test.ts\n', diff, body: NO_BODY });
+    assert.equal(r.items[0]?.kind, 'skip-marker-added', line);
+  }
+});
+
+test('a function called fit in the middle of a line is not a skip marker', () => {
+  const diff = fileDiff('src/a.test.ts', ['+  const model = fit(data);']);
+  const r = findings({ nameStatus: 'M\tsrc/a.test.ts\n', diff, body: NO_BODY });
+  assert.deepEqual(r.items, []);
+});
+
+test('expect.soft counts as an assertion and comment lines do not', () => {
+  const removed = fileDiff('src/a.test.ts', ['-  expect.soft(a).toBe(1);', '+  // expect(a).toBe(1);']);
+  const r = findings({ nameStatus: 'M\tsrc/a.test.ts\n', diff: removed, body: NO_BODY });
+  assert.equal(r.items[0]?.kind, 'assertions-removed');
+  assert.equal(r.items[0]?.detail, '1');
 });
 
 test('no findings is ok without a declaration', () => {

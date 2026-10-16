@@ -6,8 +6,12 @@ import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const TEST_DIRS = new Set(['tests', 'test', '__tests__']);
-const SKIP_RE = /\.(?:skip|only)\s*\(|\b(?:xit|xdescribe|xtest)\s*\(|#\[ignore\b/;
-const ASSERT_RE = /\b(?:expect\s*\(|assert\w*\s*[.(]|assert\w*!\s*\()/;
+// `.skip`, `.only`, `.todo`, `.fails` (with `If` / `.each` variants), the x- and f- aliases
+// at the start of a line, `{ skip: true }` options and Rust's #[ignore].
+const SKIP_RE =
+  /\.(?:skip|only|todo|fails)(?:If)?\b|\b(?:xit|xdescribe|xtest)\s*\(|^\s*(?:fit|fdescribe)\s*\(|\b(?:skip|only|todo)\s*:\s*true\b|#\[ignore\b/;
+const ASSERT_RE = /\b(?:expect(?:\.soft|\.poll)?\s*\(|assert\w*\s*[.(]|assert\w*!\s*\()/;
+const COMMENT_RE = /^\s*(?:\/\/|\/\*|\*)/;
 
 export function isTestPath(path) {
   if (/\.mdx?$/.test(path)) return false;
@@ -50,8 +54,13 @@ function isDeclared(body) {
   if (start === -1) return false;
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((line) => /^##\s/.test(line));
-  const text = (end === -1 ? rest : rest.slice(0, end)).join('\n').trim();
-  return text !== '' && text.toLowerCase() !== 'none';
+  const text = (end === -1 ? rest : rest.slice(0, end))
+    .join('\n')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .trim();
+  // "none", "None.", "`none`", "- none", "N/A": all say nothing changed.
+  const bare = text.replace(/^[\s\-*`_]+|[\s.`_]+$/g, '').toLowerCase();
+  return bare !== '' && bare !== 'none' && bare !== 'n/a';
 }
 
 export function findings({ nameStatus, diff, body }) {
@@ -78,9 +87,9 @@ export function findings({ nameStatus, diff, body }) {
     if (marker !== undefined) {
       items.push({ kind: 'skip-marker-added', path: file.path, detail: marker.trim() });
     }
-    const net =
-      file.removed.filter((line) => ASSERT_RE.test(line)).length -
-      file.added.filter((line) => ASSERT_RE.test(line)).length;
+    const asserts = (lines) =>
+      lines.filter((line) => !COMMENT_RE.test(line) && ASSERT_RE.test(line)).length;
+    const net = asserts(file.removed) - asserts(file.added);
     if (net > 0) {
       items.push({ kind: 'assertions-removed', path: file.path, detail: String(net) });
     }
@@ -110,12 +119,13 @@ function main(argv) {
     return 1;
   }
   const range = `${args.base}...${args.head}`;
-  const nameStatus = git(['diff', '--name-status', '-M', range]);
+  // The repository under analysis is data: no external diff drivers or textconv filters.
+  const nameStatus = git(['diff', '--no-ext-diff', '--no-textconv', '--name-status', '-M', range]);
   const testPaths = parseNameStatus(nameStatus)
     .flatMap(({ paths }) => paths)
     .filter(isTestPath);
   const diff = testPaths.length
-    ? git(['diff', '-M', range, '--', ...[...new Set(testPaths)].map((p) => `:(literal)${p}`)])
+    ? git(['diff', '--no-ext-diff', '--no-textconv', '-M', range, '--',...[...new Set(testPaths)].map((p) => `:(literal)${p}`)])
     : '';
   const result = findings({ nameStatus, diff, body: readFileSync(args['body-file'], 'utf8') });
   console.log(JSON.stringify(result, null, 2));

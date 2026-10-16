@@ -7,8 +7,8 @@ import { pathToFileURL } from 'node:url';
 export const REVIEWED_BY_RE = /^Reviewed-by: claude\/([^\s,]+), head ([^\s,]+)$/;
 export const VERDICT_RE = /^VERDICT: (approve|blocker)$/;
 
-// The first and last non-blank lines of the body, without trailing whitespace; null
-// when the body does not follow the grammar.
+// Line 1 and the last non-blank line of the body, without trailing whitespace; null when
+// the body does not follow the grammar.
 function parseVerdict(body) {
   const lines = String(body ?? '')
     .split(/\r?\n/)
@@ -22,11 +22,14 @@ function parseVerdict(body) {
 }
 
 export function evaluate({ comments, headSha, reviewerLogins, patchIds }) {
-  const reviewers = new Set(reviewerLogins.map((login) => login.toLowerCase()));
+  const reviewers = new Set(reviewerLogins.map((login) => login.trim().toLowerCase()));
   const headPatch = patchIds?.[headSha];
   const effective = [];
   comments.forEach((comment, index) => {
-    if (!reviewers.has(String(comment.login ?? '').toLowerCase())) return;
+    if (!reviewers.has(String(comment.login ?? '').trim().toLowerCase())) return;
+    // Anyone with Write access can edit another user's comment: an edited comment is not
+    // evidence of what the reviewer wrote. The reviewer never edits; it posts a new comment.
+    if (comment.updatedAt && Date.parse(comment.updatedAt) > Date.parse(comment.createdAt)) return;
     const parsed = parseVerdict(comment.body);
     if (!parsed) return;
     const samePatch = Boolean(headPatch) && patchIds[parsed.sha] === headPatch;
@@ -56,6 +59,7 @@ function normalizeComment(c) {
     login: c.login ?? c.user?.login ?? '',
     body: c.body ?? '',
     createdAt: c.createdAt ?? c.created_at ?? '',
+    updatedAt: c.updatedAt ?? c.updated_at ?? '',
   };
 }
 
@@ -82,7 +86,7 @@ function main(argv) {
   const result = evaluate({
     comments,
     headSha: args.head,
-    reviewerLogins: args.reviewers.split(',').filter(Boolean),
+    reviewerLogins: args.reviewers.split(',').map((login) => login.trim()).filter(Boolean),
     patchIds,
   });
   console.log(JSON.stringify(result));

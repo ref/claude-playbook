@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -139,16 +139,49 @@ test('headings inside fenced code blocks are not headings', () => {
 });
 
 test('a Dependabot PR is exempt from everything but the title', () => {
+  const author = 'dependabot[bot]';
   const dependabot = 'Bumps [left-pad](https://example.invalid) from 1.0.0 to 1.0.1.\n';
-  assert.equal(check({ title: 'chore(deps): bump left-pad from 1.0.0 to 1.0.1', body: dependabot }).ok, true);
-  const r = check({ title: 'Bump left-pad', body: dependabot });
+  assert.equal(check({ title: 'chore(deps): bump left-pad from 1.0.0 to 1.0.1', body: dependabot, author }).ok, true);
+  const r = check({ title: 'Bump left-pad', body: dependabot, author });
   assert.equal(r.ok, false);
   assert.match(r.problems.join('\n'), /title/i);
 });
 
 test('a non-Dependabot body does not earn the exemption', () => {
-  const r = check({ title: 'chore(deps): bump left-pad from 1 to 2', body: 'bumped it\n' });
+  const r = check({ title: 'chore(deps): bump left-pad from 1 to 2', body: 'bumped it\n', author: 'dependabot[bot]' });
   assert.equal(r.ok, false);
+});
+
+test('a Dependabot-shaped PR from any other author is not exempt', () => {
+  const dependabot = 'Bumps [left-pad](https://example.invalid) from 1.0.0 to 1.0.1.\n';
+  const title = 'chore(deps): bump left-pad from 1.0.0 to 1.0.1';
+  assert.equal(check({ title, body: dependabot, author: 'agent-bot' }).ok, false);
+  assert.equal(check({ title, body: dependabot }).ok, false);
+});
+
+test('a lone list marker is not content', () => {
+  for (const marker of ['1.', '-', '* ', '1.\n2.']) {
+    const r = check({ title: TITLE, body: body({ 'How to test by hand': marker }) });
+    assert.equal(r.ok, false, JSON.stringify(marker));
+    assert.match(r.problems.join('\n'), /empty/i);
+  }
+});
+
+test('"no issue" inside prose is not an issue link', () => {
+  const r = check({
+    title: TITLE,
+    body: body({ link: 'Closes #1', 'Risk nearby': 'There is no issue with caching here.' }),
+  });
+  assert.equal(r.ok, true);
+});
+
+test('"No issue" on its own line is the issue link', () => {
+  assert.equal(check({ title: TITLE, body: body({ link: 'No issue.' }) }).ok, true);
+});
+
+test('the unedited PR template fails', () => {
+  const template = readFileSync(new URL('../../pull_request_template.md', import.meta.url), 'utf8');
+  assert.equal(check({ title: TITLE, body: template }).ok, false);
 });
 
 test('tolerates a null body and CRLF line endings', () => {

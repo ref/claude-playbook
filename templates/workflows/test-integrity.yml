@@ -4,9 +4,12 @@ name: test-integrity
 # unless the PR body declares it under `## Tests changed`. The ruleset requires this job
 # by its name. Re-runs on `edited` so that a declaration added to the body is honored
 # without a new commit.
+#
+# `pull_request_target` runs this workflow file and the script from the default branch; the
+# PR is checked out into a second directory and only read as git data, never executed.
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, edited]
 
 permissions:
@@ -18,10 +21,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check out
+      - name: Check out the gate (default branch)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: gate
+
+      - name: Check out the PR as data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
+          path: pr
+          persist-credentials: false
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -35,5 +47,6 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
           printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
-          node .agents/scripts/test-integrity/integrity.mjs \
+          cd pr
+          node ../gate/.agents/scripts/test-integrity/integrity.mjs \
             --base "origin/$BASE_REF" --head HEAD --body-file "$RUNNER_TEMP/pr-body.md"

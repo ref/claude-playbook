@@ -59,6 +59,36 @@ test('latest verdict for the head wins', () => {
   assert.equal(r.state, 'blocker');
 });
 
+test('an edited comment is not a verdict', () => {
+  const edited = { ...comment('shaA', 'approve'), updatedAt: '2026-10-16T10:05:00Z' };
+  const r = run([edited]);
+  assert.equal(r.ok, false);
+  assert.equal(r.state, 'none');
+});
+
+test('editing an approve cannot overwrite an earlier blocker', () => {
+  const r = run([
+    comment('shaA', 'blocker', { createdAt: '2026-10-16T10:00:00Z' }),
+    { ...comment('shaA', 'approve', { createdAt: '2026-10-16T09:00:00Z' }), updatedAt: '2026-10-16T12:00:00Z' },
+  ]);
+  assert.equal(r.state, 'blocker');
+});
+
+test('a comment whose updatedAt equals createdAt is a verdict', () => {
+  const same = { ...comment('shaA', 'approve'), updatedAt: '2026-10-16T10:00:00Z' };
+  assert.equal(run([same]).ok, true);
+});
+
+test('reviewer logins are trimmed', () => {
+  const r = evaluate({
+    comments: [comment('shaA', 'approve', { login: 'other-bot' })],
+    headSha: 'shaA',
+    reviewerLogins: [' reviewer-bot ', ' other-bot'],
+    patchIds: {},
+  });
+  assert.equal(r.ok, true);
+});
+
 test('latest verdict wins regardless of input order', () => {
   const r = run([
     comment('shaA', 'blocker', { createdAt: '2026-10-16T11:00:00Z' }),
@@ -200,6 +230,18 @@ test('CLI accepts the REST comment shape (user.login, body, created_at)', () => 
   ];
   const res = runCli(rest);
   assert.equal(res.status, 0);
+});
+
+test('CLI ignores an edited comment in the REST shape (updated_at after created_at)', () => {
+  const rest = [
+    {
+      user: { login: REVIEWER },
+      body: verdictBody('shaA', 'approve'),
+      created_at: '2026-10-16T10:00:00Z',
+      updated_at: '2026-10-16T10:01:00Z',
+    },
+  ];
+  assert.equal(runCli(rest).status, 1);
 });
 
 test('CLI exits 1 on missing arguments', () => {

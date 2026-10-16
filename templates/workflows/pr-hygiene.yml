@@ -9,8 +9,11 @@ name: pr-hygiene
 # A separate workflow from ci.yml on purpose: it must re-run on `edited` (the body gets
 # fixed without a new commit), and that must not re-run the heavy suite.
 
+# `pull_request_target` runs this workflow file from the default branch, not from the PR;
+# nothing of the PR is checked out or executed, only its title, body and author are read.
+
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, edited, synchronize, reopened]
 
 permissions:
@@ -21,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      # The script is always the default branch's, never the PR's own.
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,8 +39,10 @@ jobs:
           # Untrusted input: read through the environment, never interpolated.
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           printf '%s' "$PR_TITLE" > "$RUNNER_TEMP/pr-title.txt"
           printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
           node .agents/scripts/pr-hygiene/hygiene.mjs \
-            --title-file "$RUNNER_TEMP/pr-title.txt" --body-file "$RUNNER_TEMP/pr-body.md"
+            --title-file "$RUNNER_TEMP/pr-title.txt" --body-file "$RUNNER_TEMP/pr-body.md" \
+            --author "$PR_AUTHOR"

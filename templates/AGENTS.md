@@ -94,8 +94,10 @@ The cycle:
 - **Never reuse a branch after merge.** A squashed branch's commits are ancestors of
   nothing on the branch it merged into, so a reused branch re-proposes work that already
   landed. Re-sync and cut a new one.
-- Rebase onto `origin/<base>` before opening a PR, and again whenever the base moves while
-  your PR is open.
+- Rebase onto `origin/<base>` before opening a PR. Once the branch is pushed with an open PR,
+  bring the base in by MERGE (`git merge origin/<base>`) or GitHub's "Update branch", never a
+  rebase: a rebase needs a force push, which is on the "Never" list, and the reviewer's
+  approve carries across a base-only update either way.
 - **Acceptance is serial even when the work is not**: when three or more open PRs are READY
   to merge (all five checks green), start no new task until the queue drains. Ready,
   deliberately, not open.
@@ -236,8 +238,8 @@ The current names and effort levels are in `.agents/routing.md`. The invariants:
 - Commands time out at two minutes in the foreground; run long suites in the background and
   poll for the result.
 - GitHub: REST through `gh api` only. No GraphQL.
-- No local database or service containers in a cloud session; a suite that needs one skips
-  there by design and CI owns it.
+- Services the tests need come from the environment's setup script. A suite whose service
+  is missing in a cloud session skips by design, and CI owns it.
 - Skills and rules are repository files, read from `AGENTS.md` and `.agents/`; nothing
   outside the repository (plugins, `~/.claude`) is available.
 

@@ -7,14 +7,18 @@ name: review-verdict
 # re-evaluate it; the ruleset requires that status context.
 #
 # The job reports failure only through the status, never through its own exit code, so a
-# failed evaluation does not show up twice. The script that evaluates is always checked
-# out from the default branch, never from the PR.
+# failed evaluation does not show up twice.
+#
+# Both triggers run the workflow file and the script from the default branch, never from the
+# PR (`pull_request_target`, not `pull_request`): this job holds a token that can set
+# statuses, and it executes no PR code. The PR head is fetched as git data for patch-ids only.
+# Edited comments are ignored by the script, so `edited` and `deleted` events re-evaluate.
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened]
   issue_comment:
-    types: [created, edited]
+    types: [created, edited, deleted]
 
 permissions:
   contents: read
@@ -28,7 +32,7 @@ concurrency:
 jobs:
   review-verdict:
     # Comments on plain issues are not ours.
-    if: github.event_name == 'pull_request' || github.event.issue.pull_request
+    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -69,13 +73,13 @@ jobs:
 
           # One JSON array of {login, body, createdAt}.
           gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
-            --jq '.[] | {login: .user.login, body: .body, createdAt: .created_at}' \
+            --jq '.[] | {login: .user.login, body: .body, createdAt: .created_at, updatedAt: .updated_at}' \
             | jq -s . > "$work/comments.json"
 
           git fetch --quiet origin "$base_ref" "pull/$PR_NUMBER/head"
 
           # Shas named in the reviewer's own comments, plus the head.
-          reviewers_json=$(printf '%s' "$REVIEWER_LOGINS" | jq -R 'split(",") | map(ascii_downcase)')
+          reviewers_json=$(printf '%s' "$REVIEWER_LOGINS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "") | ascii_downcase)')
           named=$(jq -r --argjson r "$reviewers_json" '
               .[]
               | select((.login | ascii_downcase) as $l | $r | index($l))

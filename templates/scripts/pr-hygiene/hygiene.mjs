@@ -16,7 +16,9 @@ const HEADINGS = [
 const MUST_BE_FILLED = ['How to test by hand', 'Evidence', 'Tests changed', 'Docs'];
 const CLOSES_RE = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?) +#\d+/i;
 const REFS_RE = /\brefs? +#\d+/i;
-const NO_ISSUE_RE = /\bno[ -]issue\b/i;
+const NO_ISSUE_RE = /^\s*no[ -]issue\s*\.?\s*$/im;
+// A list marker alone on a line is a template stub, not content.
+const MARKER_ONLY_RE = /^\s*(?:[-*]|\d+\.)?\s*$/;
 const DEPENDABOT_BODY_RE = /^\s*(?:Bumps |Updates the requirements on )/m;
 
 // Section name -> trimmed content; headings inside fenced code blocks do not count.
@@ -40,7 +42,7 @@ function parseSections(body) {
   return { sections: trimmed, preamble: preamble.join('\n') };
 }
 
-export function check({ title, body }) {
+export function check({ title, body, author }) {
   const problems = [];
   const titleText = String(title ?? '').trim();
   if (!TITLE_RE.test(titleText)) {
@@ -52,7 +54,12 @@ export function check({ title, body }) {
   const text = String(body ?? '')
     .replace(/\r\n?/g, '\n')
     .replace(/<!--[\s\S]*?-->/g, '');
-  if (DEPENDABOT_BODY_RE.test(text) && /^(?:chore|build)\(deps(?:-dev)?\)/.test(titleText)) {
+  // The exemption is keyed on the PR author too: a title and body are anyone's to imitate.
+  if (
+    author === 'dependabot[bot]' &&
+    DEPENDABOT_BODY_RE.test(text) &&
+    /^(?:chore|build)\(deps(?:-dev)?\)/.test(titleText)
+  ) {
     return { ok: problems.length === 0, problems };
   }
 
@@ -71,7 +78,7 @@ export function check({ title, body }) {
     if (!sections.has(heading)) problems.push(`PR body is missing the section "## ${heading}"`);
   }
   for (const heading of MUST_BE_FILLED) {
-    if (sections.has(heading) && sections.get(heading) === '') {
+    if (sections.has(heading) && sections.get(heading).split('\n').every((line) => MARKER_ONLY_RE.test(line))) {
       problems.push(`PR body section "## ${heading}" is empty`);
     }
   }
@@ -104,6 +111,7 @@ function main(argv) {
   const result = check({
     title: readFileSync(args['title-file'], 'utf8'),
     body: readFileSync(args['body-file'], 'utf8'),
+    author: args.author,
   });
   for (const problem of result.problems) console.error(`::error::${problem}`);
   if (result.ok) console.log('PR title and body are well-formed.');

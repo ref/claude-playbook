@@ -39,8 +39,11 @@ review again.
 Reading misses call sites that look right: an argument that is `undefined` at runtime, a
 guard whose helper returns the wrong default. Run the evidence and report what you ran.
 
-1. Install with a frozen lockfile (`pnpm install --frozen-lockfile`) and run the gate that
-   `AGENTS.md` names, plus the suites the diff affects. A red gate is a blocker. If a suite
+1. Install with a frozen lockfile and run the gate that `AGENTS.md` names, plus the suites
+   the diff affects. A red gate is a blocker. **PR code runs without your GitHub token**:
+   prefix every command that executes the PR's code (install scripts, the gate, probes,
+   mutations) with `env -u GH_TOKEN`, for example `env -u GH_TOKEN pnpm install
+   --frozen-lockfile`. Only your own `gh api` calls carry the token. If a suite
    skips without its infrastructure (a database), read that check's result on the PR
    (`check-runs`) instead of rebuilding the environment, and list it under `## Not
    executed`.
@@ -168,6 +171,8 @@ commit message, and re-run the probes that caught them. A push that changes no c
 
 - Push, merge, close, edit the PR or its labels, or approve through the review API: your
   identity has no right to, and the human's approval is the merge decision.
+- Edit a comment you posted: the `review-verdict` check ignores edited comments (anyone with
+  Write access can edit them). Post a new one.
 - Ask the human a question. A question you cannot answer from the PR goes into the verdict
   as a blocker.
 - Start services or containers, or install anything outside the frozen-lockfile install.

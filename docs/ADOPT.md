@@ -158,6 +158,12 @@ One line per check: `PASS`, `FAIL` or `SKIP <reason>`, printed verbatim, never s
    repository variable `REVIEWER_LOGINS` is set (`gh variable list`).
 8. A test PR (throwaway, closed unmerged) shows the five checks `checks`, `pr-hygiene`,
    `security`, `test-integrity` and `review-verdict` (the last may read "no verdict").
+   **Expect red on the first runs:** the gating workflows run on the default branch's copy
+   of the workflow files and of `.agents/scripts/`, so until the adoption PR has merged,
+   `pr-hygiene`, `test-integrity` and `review-verdict` fail with "module not found" on
+   the adoption PR itself and on any throwaway PR opened before it merges. The same holds
+   when a playbook update changes a script's command line. Merge the adoption PR first (you
+   are on the ruleset's bypass list), then open the throwaway PR.
 
 ## Summarize and offer the first commit
 

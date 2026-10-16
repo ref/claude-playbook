@@ -496,6 +496,30 @@ Decisions taken during execution, one line each.
   `playbook-update` clones shallow and deepens (`--unshallow`) only when the lock is behind.
   The project-owned class (report only) is `AGENTS.md`, `docs/RUNBOOK.md`, `ci.yml`,
   `.claude/settings.json`, `dependabot.yml`; everything else installed is kept identical.
+
+### Final review (whole branch)
+
+- Fixed, each with a failing test first: the unedited PR template and "none"-like text no
+  longer declare a test change; skip markers (`.todo`, `.fails`, `If`/`.each`, `fit`,
+  `{ skip: true }`) and `expect.soft` are covered, comment lines are not assertions;
+  edited reviewer comments are ignored (anyone with Write can edit them); reviewer logins
+  are trimmed; the Dependabot exemption needs the PR author `dependabot[bot]`; a lone list
+  marker is empty; "No issue" must be on its own line.
+- Ruling: `review-verdict`, `pr-hygiene` and `test-integrity` trigger on `pull_request_target`
+  (workflow file and script from the default branch; `test-integrity` reads the PR checkout
+  as data only) instead of the plan's `pull_request`, because they hold or may hold a
+  privileged token and execute no PR code. Cost if wrong: Dependabot and fork PRs behave
+  differently (they get a writable token); the first adoption PR shows red until merged
+  (ADOPT says so).
+- Ruling: a deleted reviewer comment cannot be detected from the comment list; the owner's
+  approving review and the `## Not executed` read remain the backstop. `deleted` events
+  re-evaluate. Cost if wrong: an agent that deletes a blocker keeps an earlier approve.
+- Ruling: the reviewer token keeps Commit statuses write per spec 6.3 for the spike, with a
+  note in SETUP to drop it afterwards; the skill runs PR code with `env -u GH_TOKEN`.
+- Ruling: once a PR is open, workers merge the base in rather than rebase (a rebase needs a
+  force push, which AGENTS.md forbids); the patch-id carry covers both.
+- Left for the owner: every commit carries the owner's personal author e-mail (spec section 5
+  asks for none in commits); switching git to a noreply address is theirs to decide.
 - Task 8: `do` and `ship` use `gh api` only (not just `ship`), so the manager works the same
   on any runtime; `check-templates` gained two guards (skill frontmatter, no `gh pr`/`gh issue`
   outside `status`). Routing names: strongest = Fable 5.1, mid (worker, reviewer) = Opus 5.5,

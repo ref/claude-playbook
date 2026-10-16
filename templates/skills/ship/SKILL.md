@@ -34,10 +34,17 @@ Find the trunk and resolve the BASE:
 
 ## 2. Bring the branch up to date with its base
 
-A task branch rebases:
+A task branch with no PR yet rebases:
 
     git fetch origin --prune
     git rebase origin/<base>
+
+A task branch that is already pushed with an open PR merges the base in instead (a rebase
+would need a force push, which is forbidden to you; the reviewer's approve carries across a
+base-only update):
+
+    git fetch origin --prune
+    git merge origin/<base>
 
 A feature branch (feature ship) merges the trunk in and never rebases: its open sub-PRs
 hang off its commits.

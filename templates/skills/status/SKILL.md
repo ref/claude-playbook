@@ -9,7 +9,7 @@ which the cloud proxy blocks; in a cloud session, say so and use `gh api` instea
 Read live, no page, no loop:
 
     gh issue list --state open --json number,title,body,labels
-    gh pr list --state open --json number,title,headRefName,baseRefName,statusCheckRollup,author
+    gh pr list --state open --json number,title,body,headRefName,baseRefName,statusCheckRollup,author
     gh pr list --state merged --limit 10 --json number,title,baseRefName,mergedAt
 
 Then:

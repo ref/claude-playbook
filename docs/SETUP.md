@@ -22,6 +22,10 @@ that will adopt the playbook:
 - **agent** token: Contents write, Pull requests write, Issues write, Metadata read.
 - **reviewer** token: Contents read, Pull requests write, Commit statuses write, Issues
   read, Metadata read. It has no push right, so it cannot change the code it reviews.
+  Commit statuses write is needed only for the plumbing spike; the `review-verdict`
+  workflow sets the real status with the Actions token. Once the spike has run, drop that
+  permission: the reviewer runs the PR's code (the gate, probes), and a token that can set
+  statuses is one a malicious PR could use to fake the check.
 
 Invite both accounts to each repository as collaborators with the **Write** role. The
 reviewer is not a code owner, so its approving review never satisfies the ruleset.
@@ -95,7 +99,9 @@ form:
   Allowed merge methods **Squash** only.
 - [ ] Require status checks to pass ✓: Require branches to be up to date before merging ✓;
   add `checks`, `pr-hygiene`, `security`, `test-integrity`, `review-verdict`.
-  (`review-verdict` is a commit status, the others are check runs; add each by name.)
+  (`review-verdict` is a commit status, the others are check runs; add each by name. Where
+  the picker offers a source for a required check, choose GitHub Actions for all five, so
+  that a status of the same name set by another token does not satisfy the rule.)
 - [ ] Everything else OFF, Copilot code review included.
 
 `feature/*` branches stay outside this ruleset on purpose: the trunk merge into them and
