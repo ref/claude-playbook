@@ -243,23 +243,23 @@ checkout, in a session there, not in this repository.
 - Produces: `export function check({ title, body })` → `{ ok, problems: string[] }`; CLI
   `node hygiene.mjs --title-file --body-file`, exit 1 with problems listed.
 
-- [ ] **Step 1: Write the failing tests** — conventional title required (`feat(x): y`
+- [x] **Step 1: Write the failing tests** — conventional title required (`feat(x): y`
   passes, `Update stuff` fails); exactly one of `Closes #<n>` / `Refs #<n>` / `No issue`
   required; each heading of the Global Constraints list present; `## How to test by hand`,
   `## Evidence`, `## Tests changed`, `## Docs` non-empty (a heading followed directly by the
   next heading is a problem); `## Docs` content must be `* ` bullets or start with
   `Docs: none —`; a Dependabot title (`chore(deps): bump …`) with the Dependabot body is
   exempt from everything but the title.
-- [ ] **Step 2: Run → FAIL. Step 3: Implement. Step 4: Run → PASS.**
-- [ ] **Step 5: Write `pr-hygiene.yml`** — on `pull_request` (`opened`, `edited`,
+- [x] **Step 2: Run → FAIL. Step 3: Implement. Step 4: Run → PASS.**
+- [x] **Step 5: Write `pr-hygiene.yml`** — on `pull_request` (`opened`, `edited`,
   `synchronize`, `reopened`); job name `pr-hygiene`; runs the CLI on the event's title and body.
-- [ ] **Step 6: Port `ci.yml`, `ci-docs.yml`, `security.yml`, `feature-merge.yml` from v1**
+- [x] **Step 6: Port `ci.yml`, `ci-docs.yml`, `security.yml`, `feature-merge.yml` from v1**
   — same job names (`checks` in both ci files; `security`); `{{DEFAULT_BRANCH}}` where v1 had
   it; drop every Rust block and placeholder (milestone 2); ci.yml steps: `format:check`,
   `type-check`, `lint`, `knip`, `build`, `test` via pnpm with a frozen lockfile and
   `.nvmrc`; `ci-docs.yml` `paths:` stays the exact inverse of `ci.yml` `paths-ignore:`;
   every job keeps `timeout-minutes`.
-- [ ] **Step 7: `actionlint templates/workflows/*.yml` → no findings. Commit** —
+- [x] **Step 7: `actionlint templates/workflows/*.yml` → no findings. Commit** —
   `feat(workflows): pr-hygiene script; ci, docs twin, security, feature-merge ported`.
 
 ### Task 6: Static templates
@@ -477,3 +477,11 @@ Decisions taken during execution, one line each.
 - Test command everywhere: `npm test` (the quoted glob); installed script path is
   `.agents/scripts/<module>/`; `check-templates` uses the installed → template mapping from
   the controller session's ruling.
+- Task 3: workflows check out the default branch (never the PR) to run the evaluating script;
+  the review-verdict job posts its result only through the status.
+- Task 5: job ids are the status contexts (`checks`, `security`, `pr-hygiene`,
+  `test-integrity`); v1's long `checks (…)` and `gitleaks (secret scan)` names are dropped
+  so the ruleset names match the spec. `{{DB_SERVICE_BLOCK}}` and `{{BUILD_ENV_BLOCK}}` of
+  v1 are dropped (a comment points at `services:`); actions pinned by sha.
+- Task 5: Dependabot exemption lives in `hygiene.mjs` (title checked, body skipped), not in
+  a workflow `if:`, so the required `pr-hygiene` check always reports.

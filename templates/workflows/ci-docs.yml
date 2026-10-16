@@ -1,0 +1,54 @@
+# The workflow name is display-only; the ruleset's required check matches on the JOB name,
+# which stays byte-identical to ci.yml's. Distinct names keep the Actions sidebar and the
+# check picker from listing two indistinguishable "CI" entries.
+name: CI (docs twin)
+
+# The no-op twin of ci.yml, and the reason `checks` can be a required status check.
+#
+# ci.yml skips doc-only PRs via `paths-ignore`. A workflow skipped by a path filter reports
+# nothing at all, and a required check that never reports blocks the merge forever. This
+# twin runs on exactly the paths ci.yml ignores and reports success under the same job
+# name, which is GitHub's documented pattern for skipped-but-required checks.
+#
+# Three invariants; only this comment enforces them:
+#
+#   1. The `paths:` list below is the exact inverse of ci.yml's `pull_request`
+#      `paths-ignore:`, entry for entry. Drift opens a PR class that triggers neither
+#      workflow and then hangs on the required check.
+#   2. The job name is byte-identical to ci.yml's `checks` job. It is the string the
+#      ruleset matches on; a rename in either file silently detaches the lock.
+#   3. The `concurrency` group is deliberately not ci.yml's. Sharing it would make the two
+#      cancel each other on a mixed (code + docs) PR, and a cancelled run reports neither
+#      success nor failure.
+#
+# `push` is absent on purpose: required checks are evaluated on pull requests.
+#
+# Accepted edge: on a PR touching both docs and code, both workflows run and report this
+# same check name. The real one takes minutes and the twin seconds, so the real result
+# lands last and wins; that ordering is likely, not guaranteed. A mixed PR that goes green
+# in seconds is worth one look before merging.
+
+on:
+  pull_request:
+    paths:
+      # Verbatim inverse of ci.yml's paths-ignore.
+      - "docs/**"
+      - "**.md"
+      - ".claude/**"
+
+concurrency:
+  group: ci-docs-${{ github.ref }}
+  cancel-in-progress: true
+
+# The job reads nothing and writes nothing.
+permissions: {}
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report success for a doc-only change
+        run: |
+          echo "Doc-only change: every path in this PR is one ci.yml ignores, so the"
+          echo "real checks job did not run. This run exists so the required check reports."

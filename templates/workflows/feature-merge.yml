@@ -1,0 +1,82 @@
+name: Feature merge
+
+# Keeps the umbrella issue true when a PR merges somewhere other than the default branch.
+# A sub-task's PR lands on its feature branch, and GitHub honors `Closes #N` only on a
+# default-branch merge, so without this every sub-issue stays open and every umbrella line
+# stays unticked.
+#
+# For every merged pull request:
+#   1. base is not the default branch: close each issue the body names with a closing
+#      keyword, with a comment naming the PR and the branch;
+#   2. any base: tick that issue's line in its umbrella's checklist, found through the
+#      `Refs #<umbrella>` the sub-issue carries. The line must read `- [ ] #<n> …`; a line
+#      that names the issue in prose is not found, by design.
+#
+# Not a status check and never a required one: it fires after the merge, when there is
+# nothing left to block. The default token is enough, and its writes do not trigger other
+# workflows. Every field read from the event is untrusted and goes through the
+# environment, never interpolated into the script.
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+jobs:
+  close:
+    name: close sub-issues and tick the umbrella
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Close the issues this PR names, tick their umbrella lines
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -eu
+          # The same keyword set pr-hygiene accepts, numbers only.
+          numbers=$(printf '%s' "$PR_BODY" \
+            | grep -oiE '(close[sd]?|fix(e[sd])?|resolve[sd]?) +#[0-9]+' \
+            | grep -oE '[0-9]+$' | sort -u || true)
+          if [ -z "$numbers" ]; then
+            echo "No closing keyword in the PR body — nothing to close or tick."
+            exit 0
+          fi
+          for n in $numbers; do
+            if [ "$BASE_REF" != "$DEFAULT_BRANCH" ]; then
+              state=$(gh issue view "$n" --json state --jq .state)
+              if [ "$state" = "OPEN" ]; then
+                gh issue close "$n" --comment "Closed by #$PR_NUMBER, merged into \`$BASE_REF\`."
+                echo "Closed #$n (merged into $BASE_REF, not $DEFAULT_BRANCH)."
+              else
+                echo "#$n is already closed."
+              fi
+            fi
+            # The umbrella: the sub-issue's body carries `Refs #<umbrella>`.
+            umbrella=$(gh issue view "$n" --json body --jq .body \
+              | grep -oiE 'refs? +#[0-9]+' | head -n 1 | grep -oE '[0-9]+$' || true)
+            if [ -z "$umbrella" ]; then
+              echo "#$n names no umbrella (no 'Refs #N' in its body) — nothing to tick."
+              continue
+            fi
+            body=$(gh issue view "$umbrella" --json body --jq .body)
+            # `- [ ] #301 — title` becomes `- [x] #301 — title`; the trailing class keeps
+            # #30 from matching #301. $n is digits only (grep above).
+            ticked=$(printf '%s' "$body" \
+              | sed -E "s/^([[:space:]]*[-*][[:space:]]+)\[ \]([[:space:]]+#$n)([^0-9]|$)/\1[x]\2\3/")
+            if [ "$ticked" = "$body" ]; then
+              echo "Umbrella #$umbrella has no '- [ ] #$n' line to tick (already ticked, or not in that form)."
+              continue
+            fi
+            printf '%s\n' "$ticked" | gh issue edit "$umbrella" --body-file -
+            echo "Ticked #$n in umbrella #$umbrella."
+          done

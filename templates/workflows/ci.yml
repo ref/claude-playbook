@@ -1,0 +1,78 @@
+name: CI
+
+# Doc-only changes skip this workflow: nothing below reads prose. security.yml carries no
+# path filter on purpose, since secrets land in markdown too.
+#
+# ci-docs.yml is this workflow's no-op twin: it runs on exactly the paths ignored here and
+# reports success under the same job name, so `checks` can be a required status check
+# without doc-only PRs hanging forever. Keep the two path lists exact inverses and the two
+# job names identical. GitHub Actions' YAML parser does not support anchors, so the list is
+# repeated.
+on:
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      # "**.md", not "**/*.md": GitHub's root-inclusive form, so root-level AGENTS.md and
+      # README.md edits are ignored as well.
+      - "**.md"
+      - ".claude/**"
+  push:
+    branches: ["{{DEFAULT_BRANCH}}"]
+    paths-ignore:
+      - "docs/**"
+      - "**.md"
+      - ".claude/**"
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # The job id is the status context the ruleset requires: `checks`.
+  checks:
+    runs-on: ubuntu-latest
+    # Insurance against a hung test burning the quota; the default is 360 minutes.
+    timeout-minutes: 15
+    # A project whose tests need a database adds a `services:` block here.
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Before setup-node, so its `cache:` finds a corepack-managed pnpm (the version comes
+      # from package.json "packageManager").
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The same static-gate scripts .githooks/pre-push runs, plus knip, which is CI-only:
+      # a mid-work branch legitimately carries a dead export for an hour, and a hook that
+      # blocks pushing WIP teaches people to bypass hooks. Adoption deletes the steps a
+      # repository has no script for; a step left behind for a missing script is a
+      # guaranteed red run.
+      - name: Format
+        run: pnpm run format:check
+      - name: Type-check
+        run: pnpm run type-check
+      - name: Lint
+        run: pnpm run lint
+      - name: Knip
+        run: pnpm run knip
+
+      # Build is a step, not its own job: a second runner bills its own spin-up for ~40s of
+      # work. It sits before the tests so a broken build fails cheap.
+      - name: Build
+        run: pnpm run build
+
+      - name: Test
+        run: pnpm test
