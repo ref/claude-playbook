@@ -32,7 +32,7 @@ Four touchpoints, and only four: you answer the manager's planning questions, yo
   `.claude/skills/*` are symlinks to them, because Claude Code reads only there.
 - **The local gate** (what CI will run anyway):
 
-      pnpm run format:check && pnpm run type-check && pnpm run lint && pnpm run knip && pnpm test
+      pnpm run format:check && pnpm run type-check && pnpm run lint && pnpm run knip && pnpm run build && pnpm test
 
 - **Dev servers**: only you start and stop them.
 - **After a fresh clone**: run `git config core.hooksPath .githooks`. The setting is per

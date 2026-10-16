@@ -79,10 +79,27 @@ the `agent` preset: a PR authored by you could not be approved by you.
 
 ## 4. The ruleset (per repository)
 
-Do this after adoption, once the workflows have run at least once on a throwaway PR: the
-required-checks picker offers only names it has already seen, and GitHub refuses to save
-the rule with an empty list. Where a setting has a `gh` form it is given; commands survive
-UI redesigns.
+The order matters, because `pr-hygiene`, `test-integrity` and `review-verdict` trigger on
+`pull_request_target` (`review-verdict` also on `issue_comment`): GitHub runs those workflow
+files, and the scripts they call, from the DEFAULT branch. On the adoption PR itself they do
+not run at all (no red, no report), and until the adoption PR has merged they do not exist
+there. So:
+
+1. **Before merging the adoption PR**, if an active ruleset already requires v1's check names
+   (`checks (type-check, lint, build, test)`, `gitleaks (secret scan)`,
+   `PR body & title hygiene`), edit it to require only `checks` and `security`. The v1 names
+   never report any more, so the PR could not be merged otherwise. Keep enforcement Active;
+   a temporary Repository-admin bypass is the alternative. A repository with no ruleset yet
+   skips this step.
+2. Merge the adoption PR (`checks` and `security` are the two that report on it).
+3. Set the repository variable `REVIEWER_LOGINS` (below).
+4. Open a throwaway PR with a code change, so that all five contexts report at least once:
+   the required-checks picker offers only names it has already seen, and GitHub refuses to
+   save the rule with an empty list. Close it unmerged.
+5. Edit (or create) the ruleset to require all five: `checks`, `pr-hygiene`, `security`,
+   `test-integrity`, `review-verdict`.
+
+Where a setting has a `gh` form it is given; commands survive UI redesigns.
 
 **Merge settings** (Settings → General → Pull Requests):
 

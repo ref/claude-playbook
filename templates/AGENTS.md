@@ -157,6 +157,12 @@ share ONE dev database:
 - A schema change never rides a feature branch ("Specs and plans").
 - Tests use their OWN database, never the dev one, and its name contains `test` so that a
   misconfigured run fails loudly instead of wiping dev data.
+- **Run the test suite one working copy at a time.** Desktop worktrees copy the same
+  `.env.local` (`.worktreeinclude`), so unless the project derives a test database name per
+  worktree they all share ONE test database, and parallel runs truncate each other's data.
+  Until it does, never start the suite while another working copy's run may be in flight
+  (another session, the human), and before blaming a failing test for a flake or a bug,
+  rerun it alone.
 
 ## Getting to the trunk
 
@@ -165,7 +171,7 @@ share ONE dev database:
   canonical: on drift it wins and the skill file is the bug.
 - Run the full gate before pushing (format with the formatter, never by hand):
 
-      pnpm run format:check && pnpm run type-check && pnpm run lint && pnpm run knip && pnpm test
+      pnpm run format:check && pnpm run type-check && pnpm run lint && pnpm run knip && pnpm run build && pnpm test
 
 - **Pre-review**: before opening the PR, run `/code-review` on your own diff and fix what
   it finds. It is the same-family pre-gate; the real review is the executing reviewer's.
@@ -242,7 +248,8 @@ The current names and effort levels are in `.agents/routing.md`. The invariants:
   poll for the result.
 - GitHub: REST through `gh api` only. No GraphQL.
 - Services the tests need come from the environment's setup script. A suite whose service
-  is missing in a cloud session skips by design, and CI owns it.
+  is missing in a cloud session fails: the setup script must provide the service and its
+  variables, and a failure there is reported, not skipped.
 - Skills and rules are repository files, read from `AGENTS.md` and `.agents/`; nothing
   outside the repository (plugins, `~/.claude`) is available.
 

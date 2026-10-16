@@ -23,8 +23,10 @@ exact diff and getting a yes**, one file at a time. A destination that does not 
 you may write freely. Two standing cases:
 
 - An existing `.claude/settings.json` is MERGED, never replaced: the template owns only the
-  `attribution` keys and the `Bash(node .agents/scripts/*:*)` allow rule; the repository's
-  own settings and hooks beside them are untouched.
+  `attribution` keys (both empty, so no trailer is added); the repository's own settings,
+  permissions and hooks beside them are untouched. The template carries no allow rule: no
+  skill runs the script modules locally, and a wildcard such as `node .agents/scripts/*`
+  would also match `node .agents/scripts/../../anything`.
 - An occupied `core.hooksPath` (husky, lefthook) is never re-pointed: offer chaining
   (`sh .githooks/pre-push "$@" < /dev/stdin`) or moving the hook into their directory, and
   say plainly that until resolved nothing blocks a direct push locally.
@@ -80,7 +82,8 @@ Also write:
   first run. Delete, do not soften with `--if-present`: a tolerant step is green while
   checking nothing. Apply the same deletions to the gate line in `AGENTS.md` and
   `docs/RUNBOOK.md`. Where a gate tool is missing, offer to add it; never invent a script.
-  The `checks` job id stays `checks` in both `ci.yml` and `ci-docs.yml`, and `ci-docs.yml`'s
+  The `Playbook script tests` step (`node --test` over `.agents/scripts/`) stays; it needs no
+  package script. The `checks` job id stays `checks` in both `ci.yml` and `ci-docs.yml`, and `ci-docs.yml`'s
   `paths:` stays the exact inverse of `ci.yml`'s `paths-ignore:`.
 - **Tests**: no test script at all → drop the test step, mark the gate line aspirational and
   say so plainly. Never write a fake passing command.
@@ -92,6 +95,13 @@ Also write:
 - **Database in tests**: on evidence (a compose file, `DATABASE_URL` in `.env.example`, a
   driver dependency), report it and ask; yes → a `services:` block with a health check in
   `ci.yml` and a job-level `DATABASE_URL`, and the project-adapted `cloud-setup.sh`.
+  Require **one test database per working copy**. `.worktreeinclude` copies `.env.local`
+  verbatim into every desktop worktree, so a fixed test database name (a `TEST_DATABASE_URL`
+  there, or one derived from `DATABASE_URL`) is shared by all of them, and parallel test
+  runs truncate each other's tables. Check how the project names its test database: derive
+  the name from the working copy (for example `<db>_test_<worktree-slug>`) or, if it cannot,
+  keep the `AGENTS.md` "Shared mutable state" rule that the suite runs one working copy at a
+  time, and tell the human that the shared name is the known cost.
 
 ## Remove v1
 
@@ -101,7 +111,8 @@ only what the human confirms, one by one:
 - `.cmux/`
 - `.agents/task-status*`, `.agents/dashboard*`, `.agents/ask*`
 - `.agents/auto-review.sh`, `.agents/guard-reviewer.sh`, `.agents/hooks.json`
-- `scripts/*-task.mts` and `scripts/*worktree*.mts` (and their tests)
+- `scripts/*-task.mts` and `scripts/*worktree*.mts` (and their tests), and
+  `scripts/task-utils.mts` with its test
 - the task-status hooks in `.claude/settings.json` (remove only those entries; Rule 0 for
   the rest of the file)
 - the `dashboard` skill (`.agents/skills/dashboard/` and its `.claude/skills/dashboard`
@@ -123,9 +134,11 @@ Anything else v1 installed that the table above replaces is overwritten only und
   entry, a transitive included, is younger than the cutoff. The remedies are waiting or an
   exclude entry with a reason; never `trustLockfile: true`.
 
-Then point the human at `docs/SETUP.md` §4–§7: the ruleset (it needs one CI run first), the
-`REVIEWER_LOGINS` variable, the reviewer routine, the cloud environment, the machine. Do
-not restate its contents.
+Then point the human at `docs/SETUP.md` §4–§7: the ruleset (its order matters: where an
+active ruleset still requires v1's check names it must be edited BEFORE the adoption PR can
+merge, and all five checks are required only after a throwaway PR has made them report),
+the `REVIEWER_LOGINS` variable, the reviewer routine, the cloud environment, the machine.
+Say the order in one sentence; do not restate the rest.
 
 ## Verify the installation (re-run any time as a health check)
 
@@ -146,25 +159,31 @@ One line per check: `PASS`, `FAIL` or `SKIP <reason>`, printed verbatim, never s
          0000000000000000000000000000000000000000 \
          | SKIP_PUSH_GATE=1 sh .githooks/pre-push origin no-such-remote
 
-4. `ci.yml`'s steps match `package.json`'s gate scripts in BOTH directions, `ci-docs.yml`'s
+4. `ci.yml`'s steps match `package.json`'s gate scripts in BOTH directions (the
+   `Playbook script tests` step runs `node --test` and is not a package script), `ci-docs.yml`'s
    job id is `checks` like `ci.yml`'s and its `paths:` is the exact inverse of `ci.yml`'s
-   `paths-ignore:`, and the gate line in `AGENTS.md` and `docs/RUNBOOK.md` lists exactly
-   those scripts.
+   `paths-ignore:`, and the gate line in `AGENTS.md` and `docs/RUNBOOK.md` is the rendered
+   one: `format:check`, `type-check`, `lint`, `knip`, `build` and `test` in that order,
+   minus the scripts the project lacks, and naming the same scripts as `ci.yml`.
 5. The script modules pass their own tests: `node --test ".agents/scripts/**/*.test.mjs"`.
 6. Merge settings via `gh api repos/{owner}/{repo}`: squash on, merge and rebase off,
    delete-branch-on-merge on.
 7. The ruleset is active: `gh api repos/{owner}/{repo}/rulesets` lists `protect-default`
    with enforcement `active` (SKIP if the human has not done SETUP §4 yet, and say so). The
    repository variable `REVIEWER_LOGINS` is set (`gh variable list`).
-8. A test PR (throwaway, closed unmerged) shows the five checks `checks`, `pr-hygiene`,
-   `security`, `test-integrity` and `review-verdict` (the last may read "no verdict").
-   **Expect red on the first runs:** the gating workflows run on the default branch's copy
-   of the workflow files and of `.agents/scripts/`, so until the adoption PR has merged,
-   `pr-hygiene`, `test-integrity` and `review-verdict` fail with "module not found" on
-   the adoption PR itself and on any throwaway PR opened before it merges. The same holds
-   when a playbook update changes a script's command line. Merge the adoption PR first (the
-   human does that deliberately, despite the red checks, before the ruleset's required
-   checks are switched on), then open the throwaway PR.
+8. A throwaway PR with a code change (closed unmerged) shows the five checks `checks`,
+   `pr-hygiene`, `security`, `test-integrity` and `review-verdict` (the last may read "no
+   verdict"). SKIP it until the adoption PR has merged and `REVIEWER_LOGINS` is set, and say
+   so. **Not earlier:** the three gating workflows trigger on `pull_request_target`, which
+   runs the default branch's copy of the workflow files and of `.agents/scripts/`. On the
+   adoption PR itself they do not run at all (no red check and no report), and neither do
+   they on a throwaway PR opened before the merge. Only `checks` and `security` report on
+   the adoption PR. So the human's order (`docs/SETUP.md` §4) is: edit the ruleset to
+   require only `checks` and `security` BEFORE merging, if an active ruleset still requires
+   v1's check names (they never report again, and the merge would stay blocked); merge; set
+   `REVIEWER_LOGINS`; open the throwaway PR so that all five contexts report; then require
+   all five. The same holds when a playbook update changes a script's command line: that PR
+   is judged by the old scripts.
 
 ## Summarize and offer the first commit
 

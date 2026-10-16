@@ -2,8 +2,5 @@
   "attribution": {
     "commit": "",
     "pr": ""
-  },
-  "permissions": {
-    "allow": ["Bash(node .agents/scripts/*:*)"]
   }
 }
