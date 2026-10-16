@@ -397,24 +397,24 @@ checkout, in a session there, not in this repository.
 - Reference: v1's `ADOPT.md` Rule 0 and "Verify the installation"; v1's `playbook-update`
   and `playbook-compact` skills.
 
-- [ ] **Step 1: SETUP §4 Ruleset** — the exact rules from spec 6.3 as a checklist in the
+- [x] **Step 1: SETUP §4 Ruleset** — the exact rules from spec 6.3 as a checklist in the
   GitHub UI's order: require PR; required approvals 1, require code-owner review, dismiss
   stale; required status checks `checks`, `pr-hygiene`, `security`, `test-integrity`,
   `review-verdict` (strict, up to date); squash only, delete branch on merge; block force
   pushes and deletions; bypass list: the owner; push ruleset "restrict file paths" for the
   six protected paths, bypass the owner only. Repository variable `REVIEWER_LOGINS` = the
   reviewer account's login.
-- [ ] **Step 2: SETUP §5 The reviewer routine** — per the spike's launch-mode line: the
+- [x] **Step 2: SETUP §5 The reviewer routine** — per the spike's launch-mode line: the
   routine's trigger events, environment (`<repo>-reviewer`), model and effort from
   `routing.md`, prompt text literally "Run `/review <pr>` as `.agents/skills/review/SKILL.md`
   describes, for the pull request this event names."; the `manager-spawned` fallback text.
-- [ ] **Step 3: SETUP §6 Cloud environments** — `templates/cloud-setup.sh`: `corepack
+- [x] **Step 3: SETUP §6 Cloud environments** — `templates/cloud-setup.sh`: `corepack
   enable`, `pnpm install --frozen-lockfile`, start services from `docker compose` when a
   compose file exists, export the test database URL; finishes under five minutes or it is
   not cached. SETUP explains the two environments and the setup script per project.
-- [ ] **Step 4: SETUP §7 The machine** — desktop app: worktrees on, auto-archive after
+- [x] **Step 4: SETUP §7 The machine** — desktop app: worktrees on, auto-archive after
   merge, branch prefix; the `agent` and `reviewer` presets (from §3).
-- [ ] **Step 5: Write `docs/ADOPT.md`** — a document an agent follows, not a skill (a skill
+- [x] **Step 5: Write `docs/ADOPT.md`** — a document an agent follows, not a skill (a skill
   cannot be invoked before it is installed): Rule 0 (never overwrite without the diff and a
   yes); the install table (template → destination, `{{DEFAULT_BRANCH}}` rendered from
   `gh repo view`, plus `.github/CODEOWNERS` written as `* @<login>` from `gh api user`); the relative
@@ -425,10 +425,10 @@ checkout, in a session there, not in this repository.
   `.claude/settings.json`, the `dashboard` skill) each shown and confirmed; the verification
   checklist (symlinks resolve, no placeholder survived, `core.hooksPath`, hook refuses a
   push to the trunk, ruleset active, the five checks appear on a test PR).
-- [ ] **Step 6: Port `playbook-update` and `playbook-compact`** — update: read the lock,
+- [x] **Step 6: Port `playbook-update` and `playbook-compact`** — update: read the lock,
   shallow-clone this repository, diff `templates/` against the installed files, show, write
   on yes, bump the lock; compact: v1's skill unchanged except file paths.
-- [ ] **Step 7: `npm test` → PASS. Commit** —
+- [x] **Step 7: `npm test` → PASS. Commit** —
   `docs: SETUP ruleset, routine, cloud environments, machine; ADOPT; update and compact skills`.
 
 ### Task 11: Adopt into the first project and run one real PR end to end
@@ -491,6 +491,11 @@ Decisions taken during execution, one line each.
 - Task 7: the verdict comment is posted with the REST comments endpoint and `-F body=@file`
   (`-F`, not the plan's `-f`: only `-F` reads a file). The `Reviewed-by` line carries the
   full head sha.
+- Task 10: `.agents/playbook.lock` gets a third line `source <git url>` so that
+  `playbook-update` knows where to clone from without naming an account in a template;
+  `playbook-update` clones shallow and deepens (`--unshallow`) only when the lock is behind.
+  The project-owned class (report only) is `AGENTS.md`, `docs/RUNBOOK.md`, `ci.yml`,
+  `.claude/settings.json`, `dependabot.yml`; everything else installed is kept identical.
 - Task 8: `do` and `ship` use `gh api` only (not just `ship`), so the manager works the same
   on any runtime; `check-templates` gained two guards (skill frontmatter, no `gh pr`/`gh issue`
   outside `status`). Routing names: strongest = Fable 5.1, mid (worker, reviewer) = Opus 5.5,
