@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -247,4 +247,102 @@ test('CLI ignores an edited comment in the REST shape (updated_at after created_
 test('CLI exits 1 on missing arguments', () => {
   const res = spawnSync(process.execPath, [cli], { encoding: 'utf8' });
   assert.equal(res.status, 1);
+});
+
+// The patch-id comparison key is computed in review-verdict.yml, not here. These tests run
+// that exact pipeline against scratch repositories, so the carry rule is probed where it is
+// decided: identical content against the base carries an approve, whitespace does not.
+const workflowFile = [
+  new URL('../../workflows/review-verdict.yml', import.meta.url),
+  new URL('../../../.github/workflows/review-verdict.yml', import.meta.url),
+].find((url) => existsSync(url));
+const workflowText = workflowFile ? readFileSync(workflowFile, 'utf8') : '';
+const PATCH_ID_PIPELINE = 'git diff --full-index "$1" "$2" | git patch-id --verbatim | cut -d" " -f1';
+
+test('the workflow computes patch-ids with the pipeline these tests probe', () => {
+  assert.ok(workflowText, 'review-verdict.yml not found next to the script module');
+  assert.ok(
+    workflowText.includes(
+      'git diff --full-index "$merge_base" "$sha" | git patch-id --verbatim | cut -d\' \' -f1',
+    ),
+  );
+  assert.doesNotMatch(workflowText, /patch-id --(?:stable|unstable)/);
+});
+
+function git(cwd, ...args) {
+  const res = spawnSync('git', ['-c', 'commit.gpgsign=false', ...args], {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      GIT_AUTHOR_NAME: 't',
+      GIT_AUTHOR_EMAIL: 't@example.invalid',
+      GIT_COMMITTER_NAME: 't',
+      GIT_COMMITTER_EMAIL: 't@example.invalid',
+    },
+  });
+  assert.equal(res.status, 0, `git ${args.join(' ')}: ${res.stderr}`);
+  return res.stdout.trim();
+}
+
+function patchId(cwd, base, sha) {
+  const mergeBase = git(cwd, 'merge-base', base, sha);
+  const res = spawnSync('sh', ['-c', PATCH_ID_PIPELINE, 'sh', mergeBase, sha], {
+    cwd,
+    encoding: 'utf8',
+  });
+  assert.equal(res.status, 0, res.stderr);
+  return res.stdout.trim();
+}
+
+function scratchRepo() {
+  const dir = mkdtempSync(join(tmpdir(), 'verdict-git-'));
+  git(dir, 'init', '-q', '-b', 'main');
+  writeFileSync(join(dir, 'clean.sh'), 'set -eu\nrm -rf $DIR/cache\n');
+  writeFileSync(join(dir, 'other.txt'), 'one\n');
+  git(dir, 'add', '.');
+  git(dir, 'commit', '-q', '-m', 'base');
+  git(dir, 'switch', '-q', '-c', 'work');
+  writeFileSync(join(dir, 'feature.txt'), 'feature\n');
+  git(dir, 'add', '.');
+  git(dir, 'commit', '-q', '-m', 'feature');
+  return dir;
+}
+
+test('patch-id: a base-only merge keeps the id, so an approve carries', () => {
+  const dir = scratchRepo();
+  const approved = git(dir, 'rev-parse', 'HEAD');
+  git(dir, 'switch', '-q', 'main');
+  writeFileSync(join(dir, 'other.txt'), 'one\ntwo\n');
+  git(dir, 'commit', '-q', '-am', 'base moves');
+  git(dir, 'switch', '-q', 'work');
+  git(dir, 'merge', '-q', '--no-edit', 'main');
+  const head = git(dir, 'rev-parse', 'HEAD');
+  assert.notEqual(head, approved);
+  const before = patchId(dir, 'main', approved);
+  const after = patchId(dir, 'main', head);
+  assert.equal(after, before);
+  const r = run([comment(approved, 'approve')], {
+    headSha: head,
+    patchIds: { [approved]: before, [head]: after },
+  });
+  assert.equal(r.ok, true);
+  assert.match(r.reason, /carried/);
+});
+
+test('patch-id: a whitespace-only change gets a new id, so an approve does not carry', () => {
+  const dir = scratchRepo();
+  const approved = git(dir, 'rev-parse', 'HEAD');
+  // One inserted space turns `$DIR/cache` into `$DIR /cache`: a different command.
+  writeFileSync(join(dir, 'clean.sh'), 'set -eu\nrm -rf $DIR /cache\n');
+  git(dir, 'commit', '-q', '-am', 'tweak');
+  const head = git(dir, 'rev-parse', 'HEAD');
+  const before = patchId(dir, 'main', approved);
+  const after = patchId(dir, 'main', head);
+  assert.notEqual(after, before);
+  const r = run([comment(approved, 'approve')], {
+    headSha: head,
+    patchIds: { [approved]: before, [head]: after },
+  });
+  assert.equal(r.ok, false);
 });

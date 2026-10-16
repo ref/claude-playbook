@@ -13,6 +13,13 @@ name: review-verdict
 # PR (`pull_request_target`, not `pull_request`): this job holds a token that can set
 # statuses, and it executes no PR code. The PR head is fetched as git data for patch-ids only.
 # Edited comments are ignored by the script, so `edited` and `deleted` events re-evaluate.
+#
+# "Identical content" is `git diff --full-index <merge-base> <sha> | git patch-id --verbatim`.
+# Never `--stable` or `--unstable`: both strip whitespace, and whitespace carries meaning
+# (shell arguments, YAML nesting, indentation-sensitive languages), so a whitespace-only
+# change would inherit an approve. `--verbatim` keeps the id across a base-only merge or a
+# rebase, because the diff against the merge base does not change. The pipeline is probed
+# in .agents/scripts/review-verdict/verdict.test.mjs, which also pins this line.
 
 on:
   pull_request_target:
@@ -95,7 +102,7 @@ jobs:
             git cat-file -e "$sha^{commit}" 2>/dev/null || git fetch --quiet origin "$sha" 2>/dev/null || true
             git cat-file -e "$sha^{commit}" 2>/dev/null || return 0
             merge_base=$(git merge-base "origin/$base_ref" "$sha" 2>/dev/null) || return 0
-            id=$(git diff "$merge_base" "$sha" | git patch-id --stable | cut -d' ' -f1)
+            id=$(git diff --full-index "$merge_base" "$sha" | git patch-id --verbatim | cut -d' ' -f1)
             [ -n "$id" ] || return 0
             jq --arg sha "$sha" --arg id "$id" '.[$sha] = $id' "$work/patch-ids.json" > "$work/patch-ids.tmp"
             mv "$work/patch-ids.tmp" "$work/patch-ids.json"
