@@ -31,7 +31,10 @@ named file there (`gh repo clone ref/agent-playbook` into a temporary directory)
 - `templates/` carries exactly one placeholder, `{{DEFAULT_BRANCH}}`; every other value is
   hardcoded for the stack: pnpm, TypeScript, GitHub, Claude Code.
 - Scripts: ESM `.mjs`, no npm dependencies, tests with `node:test` next to the script as
-  `<name>.test.mjs`, run with `node --test templates/scripts/`.
+  `<name>.test.mjs`, run with `npm test`, which is
+  `node --test "templates/scripts/**/*.test.mjs"` (Node's runner takes no directory
+  argument; a quoted glob, every depth). A single module's tests run with the same form
+  narrowed to its directory, e.g. `node --test "templates/scripts/review-verdict/*.test.mjs"`.
 - Every skill is `templates/skills/<name>/SKILL.md` with YAML frontmatter `name:` and
   `description:`; installed at `.agents/skills/<name>/SKILL.md` with a relative symlink
   `.claude/skills/<name> -> ../../.agents/skills/<name>`.
@@ -68,15 +71,15 @@ named file there (`gh repo clone ref/agent-playbook` into a temporary directory)
   `.github/workflows/ci.yml`, `templates/scripts/smoke.test.mjs`
 
 **Interfaces:**
-- Produces: `node --test templates/scripts/` as the test command; CI job `checks` running it
-  plus `actionlint` over `templates/workflows/**/*.yml` and `.github/workflows/*.yml`.
+- Produces: `npm test` as the test command (the quoted glob above); CI job `checks` running
+  it plus `actionlint` over `templates/workflows/**/*.yml` and `.github/workflows/*.yml`.
 
 - [ ] **Step 1: Write `templates/scripts/smoke.test.mjs`** — one `node:test` case asserting
-  `process.version` starts with `v2` and major ≥ 22.
-- [ ] **Step 2: Run `node --test templates/scripts/` → PASS** (1 test).
+  the Node major is ≥ 22.
+- [ ] **Step 2: Run `npm test` → PASS** (1 test).
 - [ ] **Step 3: Write `package.json`** — `"type": "module"`, `"private": true`,
-  `"engines": {"node": ">=22"}`, scripts `test: node --test templates/scripts/`; no
-  dependencies.
+  `"engines": {"node": ">=22"}`, scripts
+  `test: node --test "templates/scripts/**/*.test.mjs"`; no dependencies.
 - [ ] **Step 4: Write `.github/workflows/ci.yml`** — on `push` to `main` and `pull_request`;
   one job `checks` with `timeout-minutes: 10`: checkout, `actions/setup-node` with
   `node-version: 22`, `npm test`, then `rhysd/actionlint` (pinned by sha) over
@@ -159,7 +162,7 @@ checkout, in a session there, not in this repository.
   - `does not carry across different patch-id` → `ok: false`.
   - `malformed Reviewed-by line is not a verdict` (missing `head`) → `state: 'none'`.
   - `CLI exits 1 on blocker` — spawn `node verdict.mjs …` with fixture files.
-- [ ] **Step 2: Run `node --test templates/scripts/review-verdict/` → FAIL** (module missing).
+- [ ] **Step 2: Run `node --test "templates/scripts/review-verdict/*.test.mjs"` → FAIL** (module missing).
 - [ ] **Step 3: Implement `verdict.mjs`** — the regexes from Global Constraints; parse only
   comments whose `login` is in `reviewerLogins` and whose body matches both regexes; for each,
   resolve `effectiveFor = sha === headSha || (patchIds[sha] && patchIds[sha] === patchIds[headSha])`;
