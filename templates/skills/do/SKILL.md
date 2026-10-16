@@ -111,7 +111,7 @@ Wait for "go".
 
 Fill `.agents/worker-brief.md` for each sub-issue (or the issue itself) and start a child
 session with it as the first message: target **cloud** by default, a local worktree session
-under the `agent` preset as the fallback (for a project the cloud cannot build). Model and
+as the fallback (for a project the cloud cannot build). Model and
 effort come from `.agents/routing.md`; they go on the brief's first line because a cloud
 session ignores what the app was given. Start workers in parallel only where the plan marks
 phases independent; serial otherwise, each after the previous PR is open.
@@ -128,7 +128,7 @@ Sub-issues whose base is a feature branch are cut from it and their PRs go into 
   GitHub and merges; you never approve or merge.
 - A blocker you cannot route (the worker is gone, the verdict is missing for a long time)
   goes to the human with what you tried; a missing verdict is run by hand with `/review
-  <pr>` in a `reviewer`-preset session.
+  <pr>` in a fresh session.
 - When the last checklist line is ticked, tell the human the feature is ready for their
   hand check, and that `/ship` on the feature branch opens the one PR that takes it to the
   trunk, with an integration review and the audit ritual before the merge.

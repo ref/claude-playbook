@@ -169,8 +169,8 @@ commit message, and re-run the probes that caught them. A push that changes no c
 
 ## Never
 
-- Push, merge, close, edit the PR or its labels, or approve through the review API: your
-  identity has no right to, and the human's approval is the merge decision.
+- Push, merge, close, edit the PR or its labels, or approve through the review API: you
+  have no right to, and the human's approval is the merge decision.
 - Edit a comment you posted: the `review-verdict` check ignores edited comments (anyone with
   Write access can edit them). Post a new one.
 - Ask the human a question. A question you cannot answer from the PR goes into the verdict
@@ -180,5 +180,5 @@ commit message, and re-run the probes that caught them. A push that changes no c
 ## Runtime notes
 
 Cloud: commands over two minutes are killed, so run long suites in the background and poll;
-the GitHub proxy has no GraphQL. Local (a child session or the `reviewer` preset on the
+the GitHub proxy has no GraphQL. Local (a child session on the
 desktop): the same protocol and the same `gh api` calls.

@@ -15,9 +15,10 @@ session, and the rules below.
   `git push --force`, history rewrites, deleting data or branches you did not create,
   dropping a database with real data, publishing, deploying. Unsure whether something is
   reversible → ask.
-- **Agents never approve and never merge.** The human's approving review IS the merge
-  decision: GitHub requires it from a code owner, and the agent identities are not code
-  owners. Green CI is not permission to merge.
+- **Agents never approve and never merge.** The human's approval (their approving review
+  where the ruleset requires one, their merge click otherwise) IS the merge decision. This
+  is a rule, not a GitHub guarantee: agents and the human share one GitHub login. Green CI
+  is not permission to merge.
 
 ## Your boundaries
 
@@ -191,8 +192,9 @@ share ONE dev database:
   side. `ALLOW_DIRECT_PUSH`, `SKIP_PUSH_GATE` and `--no-verify` are the human's overrides.
 - **The gates are not part of the work.** The protected paths are `.github/workflows/**`,
   `.githooks/**`, `.agents/**`, `AGENTS.md`, `CLAUDE.md` and `.claude/settings.json`: GitHub
-  refuses the agent identity's pushes that touch them. A genuinely wrong gate is its own PR
-  that the human pushes from their own shell. Never edit a gate to get a PR green: a
+  cannot refuse an agent's pushes to them (one login), so this is a rule you keep, and the
+  reviewer blocks a PR that weakens a gate. A genuinely wrong gate is its own PR that the
+  human opens and reviews with particular care. Never edit a gate to get a PR green: a
   deleted workflow does not turn a check red, it makes the check disappear.
 
 ## Tests are the safety net — never game them
@@ -218,7 +220,8 @@ share ONE dev database:
   `Reviewed-by: claude/<model>, head <sha>`, an optional `## Not executed` section listing
   what it could not run, last line `VERDICT: approve` or `VERDICT: blocker`.
 - The `review-verdict` check passes only for an approve naming the PR head (or an earlier
-  head with an identical patch), written by the reviewer identity. A verdict that stayed in
+  head with an identical patch), written by a login listed in the repository variable
+  `REVIEWER_LOGINS`, not edited afterwards. A verdict that stayed in
   a transcript did not happen.
 - The reviewer never pushes, never merges, never asks the human: a question goes into the
   verdict as a blocker. The author fixes blockers; then a new verdict names the new head.

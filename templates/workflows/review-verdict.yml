@@ -1,8 +1,8 @@
 name: review-verdict
 
-# Passes only when the reviewer identity has posted an approve verdict for the PR's head
-# sha, or for an earlier sha whose content against the base is identical (a base-only
-# "Update branch" or a rebase keeps its approve). The result is a commit STATUS named
+# Passes only when a login listed in the repository variable REVIEWER_LOGINS has posted an
+# unedited approve verdict for the PR's head sha, or for an earlier sha whose content
+# against the base is identical (a base-only "Update branch" or a rebase keeps its approve). The result is a commit STATUS named
 # `review-verdict` on the head sha, because a comment that lands later must be able to
 # re-evaluate it; the ruleset requires that status context.
 #

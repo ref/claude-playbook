@@ -49,7 +49,7 @@ toolchain is out of scope: say so and stop.
 | `worktreeinclude` | `.worktreeinclude` |
 
 Not installed: the playbook's own `scripts/smoke.test.mjs`, `scripts/check-templates*` and
-`cloud-setup.sh` (the latter is pasted into the cloud environments by the human, SETUP §6;
+`cloud-setup.sh` (the latter is pasted into the cloud environment by the human, SETUP §6;
 show them the project-adapted version at the end).
 
 Also write:
@@ -124,7 +124,7 @@ Anything else v1 installed that the table above replaces is overwritten only und
   exclude entry with a reason; never `trustLockfile: true`.
 
 Then point the human at `docs/SETUP.md` §4–§7: the ruleset (it needs one CI run first), the
-`REVIEWER_LOGINS` variable, the reviewer routine, the cloud environments, the machine. Do
+`REVIEWER_LOGINS` variable, the reviewer routine, the cloud environment, the machine. Do
 not restate its contents.
 
 ## Verify the installation (re-run any time as a health check)
@@ -162,8 +162,9 @@ One line per check: `PASS`, `FAIL` or `SKIP <reason>`, printed verbatim, never s
    of the workflow files and of `.agents/scripts/`, so until the adoption PR has merged,
    `pr-hygiene`, `test-integrity` and `review-verdict` fail with "module not found" on
    the adoption PR itself and on any throwaway PR opened before it merges. The same holds
-   when a playbook update changes a script's command line. Merge the adoption PR first (you
-   are on the ruleset's bypass list), then open the throwaway PR.
+   when a playbook update changes a script's command line. Merge the adoption PR first (the
+   human does that deliberately, despite the red checks, before the ruleset's required
+   checks are switched on), then open the throwaway PR.
 
 ## Summarize and offer the first commit
 
@@ -174,5 +175,5 @@ the verification lines. Then offer to commit, conventional title, no attribution
 
     chore(agents): adopt claude-playbook
 
-Do not push. The adoption touches protected paths and the human pushes it from their own
-shell, through a PR.
+Do not push. The adoption touches the gates (workflows, hook, `.agents`, `AGENTS.md`); the
+human pushes it and reviews that PR with particular care.

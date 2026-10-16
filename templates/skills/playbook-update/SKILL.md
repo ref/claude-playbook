@@ -3,10 +3,10 @@ name: playbook-update
 description: Sync this repository against the current claude-playbook: read the lock, fetch the playbook, diff its templates against the installed files, show the differences, write on a yes and bump the lock. Use when asked to update, sync or check the playbook.
 ---
 
-You are syncing this repository against the claude-playbook it was adopted from. Run it from
-a session under the OWNER's login, not the `agent` preset: the sync touches protected paths
-(workflows, `.githooks`, `.agents`, `AGENTS.md`, `CLAUDE.md`, `.claude/settings.json`), which
-GitHub refuses from the agent identity.
+You are syncing this repository against the claude-playbook it was adopted from. The sync
+touches protected paths (workflows, `.githooks`, `.agents`, `AGENTS.md`, `CLAUDE.md`,
+`.claude/settings.json`): run it only when the human asks for it, and expect them to review
+the PR with particular care.
 
 **Rule 0 of the playbook's ADOPT document holds here too**: never overwrite a file without
 showing its exact diff and getting a yes, one file at a time.
@@ -77,5 +77,5 @@ One branch, one PR, `chore: sync playbook files`, with the lock rewritten in the
     source <git url>
 
 Keep the existing `docs` lines. The PR body lists, per file, what changed and why (the
-upstream commit messages). The PR touches protected paths, so you push it from your own
-shell.
+upstream commit messages). The PR touches the gates, so the human reviews it with
+particular care.

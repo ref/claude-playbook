@@ -1,23 +1,43 @@
 # SETUP — the human's one-time configuration
 
 `docs/ADOPT.md` is the agent's page; this one is yours. Sections 1–3 are done once per
-machine and account pair; sections 4–7 are done once per repository. `<owner>` and `<repo>`
-below are your GitHub login and the repository name.
+machine; sections 4–7 are done once per repository. `<owner>` and `<repo>` below are your
+GitHub login and the repository name.
 
-## 1. Identities
+## 1. Identities: one, for now
 
-GitHub must be able to tell an agent from you, otherwise the approval rule in section 4 is
-not a machine guarantee. There are three identities:
+Decision 2026-10-16: no separate GitHub accounts yet. Everything runs under your own
+account locally (your own `gh auth`) and under the Claude GitHub App in the cloud. There are
+no machine users and no tokens to create.
+
+What this costs, honestly. The design (spec 6.3) wanted GitHub to tell an agent from you, and
+without that three guarantees become rules in `AGENTS.md` instead of machine guarantees:
+
+- **The approval rule.** If the agent's PRs are authored by your login, GitHub does not let
+  you approve them. Whether it works depends on the login a cloud push and a cloud PR appear
+  under; the plumbing spike records it (`docs/spikes/2026-10-review-plumbing.md`, first
+  observation) and section 4 says what to set.
+- **Verdict authenticity.** `review-verdict` trusts comments by the logins in
+  `REVIEWER_LOGINS`. If the reviewer comments under the same login as the worker, any
+  session that login runs could write a verdict-shaped comment. Edited comments are ignored
+  and the reviewer never edits, but authorship is a rule, not a guarantee, until the logins
+  differ. The `## Not executed` list in the verdict and your own approval are the backstop.
+- **Protected paths.** No push ruleset can single out the agent (section 4), so "agents do
+  not change gates" is prose in `AGENTS.md`, backed by `CODEOWNERS` and the reviewer's
+  gate-integrity check.
+
+### Later, if you want the guarantees back
+
+Three identities: you (your shell and the GitHub UI), an agent account and a reviewer
+account, each a separate GitHub account (a machine user). Create them by hand (account
+creation is not something an agent does), then for each create a fine-grained personal
+access token scoped to the repositories that adopt the playbook:
 
 | Role | Who | Used in |
 |---|---|---|
 | owner | you | your own shell and the GitHub UI, nowhere else |
-| agent | a second GitHub account (machine user) | worker cloud environments, the `agent` desktop preset |
-| reviewer | a third GitHub account (machine user) | the reviewer cloud environment, the `reviewer` desktop preset |
-
-Create the two machine accounts by hand (account creation is not something an agent does).
-Then, for each one, create a fine-grained personal access token scoped to the repositories
-that will adopt the playbook:
+| agent | a second GitHub account | worker cloud environment, the `agent` desktop preset |
+| reviewer | a third GitHub account | the reviewer cloud environment, the `reviewer` desktop preset |
 
 - **agent** token: Contents write, Pull requests write, Issues write, Metadata read.
 - **reviewer** token: Contents read, Pull requests write, Commit statuses write, Issues
@@ -28,42 +48,34 @@ that will adopt the playbook:
   statuses is one a malicious PR could use to fake the check.
 
 Invite both accounts to each repository as collaborators with the **Write** role. The
-reviewer is not a code owner, so its approving review never satisfies the ruleset.
+reviewer is not a code owner, so its approving review never satisfies the ruleset. Token
+expiry: one year, with a calendar reminder a month before. Why machine users and not GitHub
+Apps: App tokens expire hourly, while presets and cloud environments hold long-lived
+secrets. The changes this path needs elsewhere are marked "later" in sections 2–4 and 7.
 
-Token expiry: one year. Put a calendar reminder a month before it.
+## 2. Cloud environment
 
-Why machine users and not GitHub Apps: App tokens expire hourly, while presets and cloud
-environments hold long-lived secrets.
+Per adopting repository, create one Claude cloud environment named `<repo>`: trusted
+network (package registries and GitHub), the setup script of section 6. The Claude GitHub
+App authenticates GitHub access; there is no `GH_TOKEN` secret. The worker sessions and the
+reviewer routine use the same environment.
 
-## 2. Cloud environments
+Cloud sessions reach GitHub through a proxy that blocks GraphQL: the pull-request and issue
+subcommands of `gh` fail there, `gh api` (REST) works. Every playbook skill that may run in
+the cloud uses `gh api` only.
 
-Per adopting repository, create two Claude cloud environments:
+*Later (machine users):* two environments instead, `<repo>-worker` with the agent token and
+`<repo>-reviewer` with the reviewer token, each as a network secret named `GH_TOKEN`, both
+with the same setup script.
 
-| Environment | Name | Network | Secret |
-|---|---|---|---|
-| worker | `<repo>-worker` | trusted | the agent token, as a network secret named `GH_TOKEN` |
-| reviewer | `<repo>-reviewer` | trusted | the reviewer token, as a network secret named `GH_TOKEN` |
+## 3. Desktop
 
-Both use the setup script `templates/cloud-setup.sh` from this repository, adapted per
-project (section 6 explains it; the script itself is written in the playbook's Task 10 and
-named here only so the environments can reference it).
+Nothing to configure: sessions use your own `gh auth` login.
 
-Cloud sessions reach GitHub through a proxy that blocks GraphQL: `gh pr …` and `gh issue …`
-fail there, `gh api` (REST) works. Every playbook skill that may run in the cloud uses
-`gh api` only.
-
-## 3. Desktop presets
-
-In the Claude desktop app create two session presets:
-
-| Preset | Carries |
-|---|---|
-| `agent` | `GH_TOKEN` = the agent token. Every manager and every local worker session uses it. |
-| `reviewer` | `GH_TOKEN` = the reviewer token. Used when you run `/review <n>` by hand. |
-
-Your own terminal keeps your own `gh auth` login. Never start a manager or worker session
-without the `agent` preset: a PR authored by you could not be approved by you, and the
-ruleset would be unsatisfiable.
+*Later (machine users):* two session presets, `agent` (`GH_TOKEN` = the agent token; every
+manager and local worker session uses it) and `reviewer` (`GH_TOKEN` = the reviewer token;
+used when you run `/review <n>` by hand). Never start a manager or worker session without
+the `agent` preset: a PR authored by you could not be approved by you.
 
 ## 4. The ruleset (per repository)
 
@@ -81,22 +93,24 @@ gh api -X PATCH repos/{owner}/{repo} \
   -F squash_merge_commit_title=PR_TITLE -F squash_merge_commit_message=BLANK
 ```
 
-Auto-merge may be on (the merge is your button or auto-merge; the approval is the
-decision). Also turn on, under Settings → Advanced Security: Dependency graph, Dependabot
-alerts, Dependabot security updates (CVE patches bypass the cooldowns on purpose) and
-grouped security updates; on a public repository, Secret scanning and Push protection too.
+Auto-merge may be on (the merge is your button or auto-merge; the approval, where GitHub
+allows one, is the decision). Also turn on, under Settings → Advanced Security: Dependency
+graph, Dependabot alerts, Dependabot security updates (CVE patches bypass the cooldowns on
+purpose) and grouped security updates; on a public repository, Secret scanning and Push
+protection too.
 
 **Branch ruleset** (Settings → Rules → Rulesets → New branch ruleset), in the order of the
 form:
 
 - [ ] Ruleset name `protect-default`; Enforcement status **Active** (it ships Disabled).
-- [ ] Bypass list: **you** (the Repository admin role). The machine users have the Write
-  role and do not bypass. Nothing else.
+- [ ] Bypass list: may stay empty. (You are the only writer under one identity; add
+  yourself, the Repository admin role, if you want emergency pushes.)
 - [ ] Target branches: Include default branch (not a name pattern).
 - [ ] Restrict deletions ✓; Block force pushes ✓.
-- [ ] Require a pull request before merging ✓: Required approvals **1**; Dismiss stale pull
-  request approvals when new commits are pushed ✓; Require review from Code Owners ✓;
-  Allowed merge methods **Squash** only.
+- [ ] Require a pull request before merging ✓: Required approvals **1 if the spike shows
+  that PR authors are not your login, otherwise 0**; Dismiss stale pull request approvals
+  when new commits are pushed ✓ (only meaningful with 1); Require review from Code Owners
+  ✓ **only together with 1**; Allowed merge methods **Squash** only.
 - [ ] Require status checks to pass ✓: Require branches to be up to date before merging ✓;
   add `checks`, `pr-hygiene`, `security`, `test-integrity`, `review-verdict`.
   (`review-verdict` is a commit status, the others are check runs; add each by name. Where
@@ -108,25 +122,25 @@ form:
 GitHub's "Update branch" button would both be refused. Their gate is the trunk's, at the
 feature PR.
 
-**Push ruleset** (Settings → Rules → Rulesets → New push ruleset), the protected paths:
-
-- [ ] Restrict file paths: `.github/workflows/**`, `.githooks/**`, `.agents/**`,
-  `AGENTS.md`, `CLAUDE.md`, `.claude/settings.json`.
-- [ ] Enforcement **Active**; bypass list: you only.
-
-Push rulesets depend on the account plan. If the option is missing, say so in the adoption
-record; the fallback is that `CODEOWNERS` already names you for every path, so a change to
-a gate cannot merge without your approval, and the agent's pushes to those paths are caught
-by the reviewer's gate-integrity check instead of refused up front.
-
-**Repository variable** `REVIEWER_LOGINS` = the reviewer account's login (several, comma
-separated, if you ever have more):
+**Repository variable** `REVIEWER_LOGINS` = the login the reviewer's verdict comments appear
+under (several, comma separated, if there are more). The spike records it for the routine;
+for a `/review` run by hand it is your own login.
 
 ```
-gh variable set REVIEWER_LOGINS --body '<reviewer login>'
+gh variable set REVIEWER_LOGINS --body '<login the verdict comments appear under>'
 ```
 
-The `review-verdict` workflow ignores every comment whose author is not in this list.
+The `review-verdict` workflow ignores every comment whose author is not in this list. With
+one identity the list is, in effect, "comments by this account", so see section 1 for what
+that does and does not guarantee.
+
+*Later (machine users):* a push ruleset (Settings → Rules → Rulesets → New push ruleset)
+for the protected paths: Restrict file paths `.github/workflows/**`, `.githooks/**`,
+`.agents/**`, `AGENTS.md`, `CLAUDE.md`, `.claude/settings.json`; Enforcement **Active**;
+bypass list: you only. Required approvals **1** with Code Owners then always works, because
+the agent account is not a code owner. Push rulesets depend on the account plan; if the
+option is missing, the fallback is that `CODEOWNERS` already names you for every path and
+the reviewer's gate-integrity check catches edits to a gate.
 
 ## 5. The reviewer routine
 
@@ -137,7 +151,7 @@ fallback below instead.
 
 In the Claude app create a routine for the repository:
 
-- Environment: `<repo>-reviewer` (section 2), so the session carries the reviewer token.
+- Environment: `<repo>` (section 2), the same as the workers use.
 - Trigger: a pull request is opened or marked ready for review, and a push lands on an open
   pull request (the `synchronize` event). If the routine UI offers fewer events, the spike
   records which ones; a trigger on open alone is not enough, because every push needs a
@@ -151,27 +165,23 @@ A routine is a research preview: a green run does not prove a verdict was writte
 `no verdict`.
 
 **Fallback, launch mode `manager-spawned`**: the manager session starts the reviewer as a
-child session per PR head (environment `<repo>-reviewer`, or a local child under the
-`reviewer` preset where the cloud cannot build the project), with the same prompt and the
-PR number filled in, once when the worker reports the PR and again after every worker push.
-After the manager is gone, you run `/review <n>` by hand in a `reviewer`-preset session.
+child session per PR head (the cloud environment `<repo>`, or a local child session where
+the cloud cannot build the project), with the same prompt and the PR number filled in, once
+when the worker reports the PR and again after every worker push. After the manager is
+gone, you run `/review <n>` by hand.
 
-## 6. Cloud environments in detail
+## 6. Cloud environment in detail
 
-Both environments use the repository's setup script. `templates/cloud-setup.sh` is the
+The environment uses the repository's setup script. `templates/cloud-setup.sh` is the
 starting point: copy it into the environment's setup-script field and adapt it to the
 project. It enables corepack, installs with a frozen lockfile, starts the services from
 `docker compose` when a compose file exists, and exports the test database URL. It must
 finish in under five minutes, or the environment is not cached and every session pays for
-it again.
-
-- `<repo>-worker`: the agent token as `GH_TOKEN`, trusted network (package registries and
-  GitHub), the setup script.
-- `<repo>-reviewer`: the reviewer token as `GH_TOKEN`, the same setup script, so that the
-  reviewer can run the gate.
+it again. One environment serves workers and the reviewer, so the reviewer can run the gate.
 
 A project the cloud cannot build (memory limits) runs its reviewer as a local child session
-instead; the playbook's `review` skill is the same in both.
+instead; the playbook's `review` skill is the same in both. *Later (machine users):* see
+section 2 for the two-environment variant.
 
 ## 7. The machine
 
@@ -181,8 +191,9 @@ In the Claude desktop app:
 - [ ] Auto-archive sessions after their PR merges.
 - [ ] Branch prefix for session branches: your preference; task branches follow
   `<type>/<short-name>` from `AGENTS.md`.
-- [ ] The `agent` and `reviewer` presets from section 3.
 - [ ] `git config core.hooksPath .githooks` in every clone (the setting is per clone; the
   verification checklist in `docs/ADOPT.md` checks it).
+
+*Later (machine users):* the `agent` and `reviewer` presets of section 3.
 
 Desktop mods are your personal choice and are not part of the playbook.

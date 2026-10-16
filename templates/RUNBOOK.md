@@ -13,7 +13,7 @@ not say, that is a bug in this page: file it.
 Four touchpoints, and only four: you answer the manager's planning questions, you say
 "go", you hand-test, you approve and merge.
 
-- **Starting a task**: type `/do <n>` in a new desktop session under the `agent` preset.
+- **Starting a task**: type `/do <n>` in a new desktop session.
   That session is the manager: it reads `AGENTS.md` and issue #n including its comments,
   decides what the issue needs (a spec and plan first, one question first, or a worker
   right away), and reports back. For substantial work it interviews you, writes the spec and
@@ -40,9 +40,11 @@ Four touchpoints, and only four: you answer the manager's planning questions, yo
 
 ## Approving and merging
 
-- Your approving review on GitHub IS the merge decision. The ruleset requires one approval
-  from a code owner, and the agent identities are not code owners, so an agent cannot
-  approve its own work. Merge is squash only, by your button or auto-merge.
+- Your approving review on GitHub IS the merge decision where the ruleset requires one
+  approval (it can only if the PR's author is not your own login; SETUP section 4 says when).
+  Where it does not, the merge click is the decision, and agents still never approve or
+  merge: that is a rule in `AGENTS.md`, not something GitHub enforces. Merge is squash only,
+  by your button or auto-merge.
 - Five checks must be green: `checks`, `pr-hygiene`, `security`, `test-integrity`,
   `review-verdict`. The branch must be up to date with the base.
 - **What the `review-verdict` status description tells you**:
@@ -65,10 +67,12 @@ The reviewer starts by itself on every PR head. If `review-verdict` still reads
 `no verdict for <sha>` after a reasonable wait (the routine is a research preview and a
 green routine run does not prove a verdict was written):
 
-1. Look at the PR's comments for a verdict from the reviewer account. A comment from
-   anybody else, or one not shaped as the grammar requires, does not count.
-2. Run `/review <n>` yourself in a desktop session under the `reviewer` preset. It posts the
-   verdict as a comment; the status re-evaluates on its own.
+1. Look at the PR's comments for a verdict from a login listed in `REVIEWER_LOGINS`. A
+   comment from anybody else, an edited one, or one not shaped as the grammar requires,
+   does not count.
+2. Run `/review <n>` yourself in a desktop session. It posts the verdict as a comment (under
+   your own login, which must then be in `REVIEWER_LOGINS`); the status re-evaluates on its
+   own.
 3. If it keeps failing, look at the routine's run history in the app.
 
 ## Features that take several PRs (feature branches)
@@ -142,12 +146,15 @@ can do the other's job:
 
 ## Emergency overrides (yours alone — agents may never use them)
 
-- `ALLOW_DIRECT_PUSH=1 git push …`: a direct push to the trunk past the local hook. You are
-  on the ruleset's bypass list, so GitHub accepts it from your own login. Prefer a PR.
+- `ALLOW_DIRECT_PUSH=1 git push …`: a direct push to the trunk past the local hook. The
+  ruleset still applies to you unless you put yourself on its bypass list (SETUP section 4).
+  Prefer a PR.
 - `SKIP_PUSH_GATE=1 git push …`: skip the local static gate.
 - Changing a protected path (workflows, `.githooks`, `.agents`, `AGENTS.md`, `CLAUDE.md`,
-  `.claude/settings.json`): push from your own shell, through a PR. The agent identity's
-  pushes touching them are refused.
+  `.claude/settings.json`) is a PR you open yourself, or review with particular care when an
+  agent opens it: with one identity GitHub cannot refuse the agent's pushes to them, so the
+  protection is the rule in `AGENTS.md`, `CODEOWNERS` and the reviewer's gate-integrity
+  check.
 
 ## When something looks broken
 
@@ -159,11 +166,11 @@ can do the other's job:
 | `pr-hygiene` red | The title, the issue link or a template section is missing or empty; the author edits the body and it re-runs |
 | `test-integrity` red | The diff deletes or skips a test, or removes assertions, and `## Tests changed` does not say why. The author declares it (or restores the test); you decide whether the reason is good |
 | `review-verdict` missing or `no verdict for <sha>` | See "When a verdict never lands" |
-| `review-verdict` says `repository variable REVIEWER_LOGINS is not set` | Set the repository variable `REVIEWER_LOGINS` to the reviewer account's login (SETUP) |
+| `review-verdict` says `repository variable REVIEWER_LOGINS is not set` | Set the repository variable `REVIEWER_LOGINS` to the login the reviewer's verdict comments appear under (SETUP) |
 | A merged sub-PR left its issue open or its umbrella line unticked | Open the Feature merge run on that PR: the body had no `Closes #N`, or the umbrella line is not in the `- [ ] #N` form. Fix the line by hand this once |
 | `ship` refused a sub-task for touching the schema | By design: a schema change goes to the trunk as its own small PR, then the task rebases onto it |
 | The approve you see was for another sha | `approve carried from <sha>` means identical content; anything else needs a fresh verdict, so wait for the reviewer or run `/review <n>` |
-| An agent's push was rejected on a path under `.github/workflows` or `.agents` | The push ruleset protects those paths; the change is a PR you push yourself |
+| An agent's push was rejected on a path under `.github/workflows` or `.agents` | Only with the later machine-user setup (a push ruleset): the change is a PR you push yourself |
 
 ## Verified
 

@@ -518,6 +518,10 @@ Decisions taken during execution, one line each.
   note in SETUP to drop it afterwards; the skill runs PR code with `env -u GH_TOKEN`.
 - Ruling: once a PR is open, workers merge the base in rather than rebase (a rebase needs a
   force push, which AGENTS.md forbids); the patch-id carry covers both.
+- Owner decision, applied after the review: no separate GitHub identities for now (one login
+  locally, the Claude GitHub App in the cloud, one cloud environment `<repo>`, no tokens or
+  presets). SETUP keeps the machine-user path under "Later"; the identity design stays in
+  the spec; templates speak of `REVIEWER_LOGINS` and rules instead of identities.
 - Left for the owner: every commit carries the owner's personal author e-mail (spec section 5
   asks for none in commits); switching git to a noreply address is theirs to decide.
 - Task 8: `do` and `ship` use `gh api` only (not just `ship`), so the manager works the same

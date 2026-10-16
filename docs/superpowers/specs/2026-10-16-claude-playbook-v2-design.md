@@ -169,6 +169,20 @@ vendor diversity. v2 keeps those levers mandatory and makes the other family a m
   presets and environments hold long-lived secrets. The owner decided for the identities
   (section 8); the fallback without them would have been v1's position — gate files
   guarded by prose, the verdict's author unverifiable.
+- **Decision 2026-10-16: deferred.** The owner chose no separate GitHub identities for now:
+  everything runs under the owner's own account locally and under the Claude GitHub App in
+  the cloud, with one cloud environment per repository and no tokens. The three
+  identity-based guarantees above become rules in `AGENTS.md` until the owner revisits:
+  (1) the approval rule holds only if GitHub treats the cloud PR's author as someone other
+  than the owner, so Required approvals is 1 if the first spike shows that and 0 otherwise
+  (Require review from Code Owners only together with 1); (2) the verdict's authenticity
+  rests on `REVIEWER_LOGINS` naming the login the reviewer's comments appear under, and
+  that login may equal the worker's; edited comments are ignored and the reviewer never
+  edits, but authorship is a rule rather than a guarantee; (3) the protected paths cannot
+  be a push ruleset that singles out the agent, so they are prose plus `CODEOWNERS` and the
+  reviewer's gate-integrity check. The first spike observation (the login a cloud push and
+  a cloud comment appear under) decides (1) and (2). The identity design above stays as the
+  path back; `docs/SETUP.md` keeps its instructions under "Later".
 - **Ruleset on the trunk**: PR required; one approving review required, from a code owner
   (`CODEOWNERS` names the owner for `*`), stale approvals dismissed on push — this is the
   human merge as a machine rule, possible only because PRs are authored by the agent
@@ -331,6 +345,9 @@ only the principles.
 ## 8. Owner's decisions (2026-10-16)
 
 - **Identities**: yes — the agent and the reviewer get their own GitHub identities (6.3).
+  *Superseded the same day:* no separate identities for now; one login locally, the Claude
+  GitHub App in the cloud, the guarantees as rules until revisited (6.3, "Decision
+  2026-10-16: deferred").
 - **Repository**: a new public repository, `claude-playbook`, separate from the owner's
   general Claude-notes repository. Separate because the adopt and update skills pin a
   playbook COMMIT in `.agents/playbook.lock`, which only means something when every commit
