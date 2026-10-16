@@ -74,26 +74,26 @@ named file there (`gh repo clone ref/agent-playbook` into a temporary directory)
 - Produces: `npm test` as the test command (the quoted glob above); CI job `checks` running
   it plus `actionlint` over `templates/workflows/**/*.yml` and `.github/workflows/*.yml`.
 
-- [ ] **Step 1: Write `templates/scripts/smoke.test.mjs`** — one `node:test` case asserting
+- [x] **Step 1: Write `templates/scripts/smoke.test.mjs`** — one `node:test` case asserting
   the Node major is ≥ 22.
-- [ ] **Step 2: Run `npm test` → PASS** (1 test).
-- [ ] **Step 3: Write `package.json`** — `"type": "module"`, `"private": true`,
+- [x] **Step 2: Run `npm test` → PASS** (1 test).
+- [x] **Step 3: Write `package.json`** — `"type": "module"`, `"private": true`,
   `"engines": {"node": ">=22"}`, scripts
   `test: node --test "templates/scripts/**/*.test.mjs"`; no dependencies.
-- [ ] **Step 4: Write `.github/workflows/ci.yml`** — on `push` to `main` and `pull_request`;
+- [x] **Step 4: Write `.github/workflows/ci.yml`** — on `push` to `main` and `pull_request`;
   one job `checks` with `timeout-minutes: 10`: checkout, `actions/setup-node` with
   `node-version: 22`, `npm test`, then `rhysd/actionlint` (pinned by sha) over
   `templates/workflows` and `.github/workflows`. `templates/workflows/` may be empty at this
   point: guard the actionlint step with a glob that tolerates no files.
-- [ ] **Step 5: Write `README.md`** — five lines: what this is (the owner's Claude Code
+- [x] **Step 5: Write `README.md`** — five lines: what this is (the owner's Claude Code
   workflow: a manager session, cloud workers, an executing reviewer, GitHub gates), the link to
   the spec, the one-sentence adoption instruction ("open a session in your repository and say:
   read docs/ADOPT.md from github.com/ref/claude-playbook and install it"), the sync command
   (`/playbook-update`), the license.
-- [ ] **Step 6: Write `.gitignore`** (`node_modules/`, `.claude/worktrees/`) and `LICENSE`
+- [x] **Step 6: Write `.gitignore`** (`node_modules/`, `.claude/worktrees/`) and `LICENSE`
   (MIT, the year and the owner's GitHub handle only).
-- [ ] **Step 7: Commit** — `chore: repository skeleton with node:test and actionlint CI`.
-- [ ] **Step 8: Push and confirm the `checks` run is green on GitHub** (`gh run list -L1`).
+- [x] **Step 7: Commit** — `chore: repository skeleton with node:test and actionlint CI`.
+- [x] **Step 8: Push and confirm the `checks` run is green on GitHub** (`gh run list -L1`).
 
 ### Task 2: Identities, environments, presets — and the plumbing spike
 
@@ -108,16 +108,16 @@ checkout, in a session there, not in this repository.
   environment names (`<repo>-worker`, `<repo>-reviewer`), the two desktop presets (`agent`,
   `reviewer`), and the spike's answers consumed by Tasks 3, 7 and 10.
 
-- [ ] **Step 1: Write `docs/SETUP.md` §1 Identities** — the human creates two GitHub
+- [x] **Step 1: Write `docs/SETUP.md` §1 Identities** — the human creates two GitHub
   accounts; fine-grained tokens per the spec 6.3 (agent: contents write, pull requests write,
   issues write, metadata read; reviewer: contents read, pull requests write, commit statuses
   write, issues read, metadata read); both invited as collaborators with Write; token expiry
   one year with a calendar reminder.
-- [ ] **Step 2: Write §2 Cloud environments** — per project two environments: worker (agent
+- [x] **Step 2: Write §2 Cloud environments** — per project two environments: worker (agent
   token as a network secret named `GH_TOKEN`, trusted network), reviewer (reviewer token as
   `GH_TOKEN`); setup script `templates/cloud-setup.sh` placeholder named here, written in
   Task 10.
-- [ ] **Step 3: Write §3 Desktop presets** — `agent` and `reviewer` presets carrying
+- [x] **Step 3: Write §3 Desktop presets** — `agent` and `reviewer` presets carrying
   `GH_TOKEN`; the owner's own shell keeps the owner's `gh auth`.
 - [ ] **Step 4: Run the spike in the first adopter** — on a throwaway branch and PR, with a
   routine whose prompt is literally: "Post a comment on PR #<n> through `gh api` with the body
@@ -131,7 +131,7 @@ checkout, in a session there, not in this repository.
 - [ ] **Step 5: Decide and record the launch mode** at the end of the spike file: `routine`
   if a routine fires on PR open and on push; otherwise `manager-spawned` (spec 6.1
   fallback). Task 10 §Routine reads this line.
-- [ ] **Step 6: Commit** — `docs: identities, environments, presets; review plumbing spike`.
+- [x] **Step 6: Commit** — `docs: identities, environments, presets; review plumbing spike`.
 
 ### Task 3: `review-verdict` script and workflow
 
@@ -464,3 +464,16 @@ pushed. Nothing here changes this repository except the final note.
 - Schema-lock and the shared-DB rules as an optional module — spec 6.5.
 - Migrating the remaining v1 repositories; retiring the `agent-playbook` repository with a
   pointer to this one.
+
+## Rulings
+
+Decisions taken during execution, one line each.
+
+- Task 2: documents only. Steps 4 and 5 (running the spike, recording the launch mode) are
+  left unticked and wait for the owner; `docs/spikes/2026-10-review-plumbing.md` holds the
+  procedure, an empty results table and `Launch mode: pending (routine | manager-spawned)`.
+- Task 10 will write SETUP §5 for launch mode `routine`, with the `manager-spawned` fallback
+  text, marked as to be confirmed by the spike.
+- Test command everywhere: `npm test` (the quoted glob); installed script path is
+  `.agents/scripts/<module>/`; `check-templates` uses the installed → template mapping from
+  the controller session's ruling.
