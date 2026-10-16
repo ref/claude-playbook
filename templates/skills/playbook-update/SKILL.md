@@ -42,8 +42,9 @@ commit is not in the history, say so and run the full comparison anyway.
 ## 5. Compare and sync
 
 The mapping from template to installed path is the install table in the playbook's ADOPT
-document (`ADOPT.md` in the clone's `docs` directory; read it there); the only value rendered is `{{DEFAULT_BRANCH}}`
-(`gh api repos/{owner}/{repo} --jq .default_branch`). For every template file, render it and
+document (`ADOPT.md` in the clone's `docs` directory; read it there); the only value rendered
+is the default branch name (`gh api repos/{owner}/{repo} --jq .default_branch`), which
+replaces the template's one double-brace placeholder. For every template file, render it and
 compare it with the installed file. Two classes:
 
 - **Owned by the project, report only**: `AGENTS.md`, `docs/RUNBOOK.md` and

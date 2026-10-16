@@ -31,6 +31,11 @@ Find the trunk and resolve the BASE:
 - On the trunk → STOP. Agents never push to it.
 - Dirty tree → STOP. Commit first, or say what the stray files are.
 - Feature ship with unticked umbrella lines → STOP and say which sub-issues are open.
+- The BASE is a feature branch (or this is a feature ship) and `git diff origin/<base>...HEAD
+  --stat` shows a change to the schema surface (migrations, schema definitions, whatever
+  `AGENTS.md` "Shared mutable state" names) → STOP. A schema change never rides a feature
+  branch: it ships to the trunk as its own small PR, and this task rebases onto it after it
+  merges. Say which files tripped the refusal.
 
 ## 2. Bring the branch up to date with its base
 
