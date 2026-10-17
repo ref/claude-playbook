@@ -36,10 +36,12 @@ An issue is a seed, not a spec: a two-line reminder is a valid issue. The `do` s
 stage gate decides what it needs next:
 
 - **Small work, decision already made** (one PR, no new subsystem, no schema change) →
-  one worker implements it directly.
+  the `/do` session itself does it, in place: branch, test-first, gate, `ship`. No child
+  session, no subagent, no plan, no spec.
 - **Small work resting on an unmade decision** → the manager asks first, in its own
   session: questions one at a time, options with their costs, a recommendation. The agreed
-  shape goes into a comment on the issue, then the code follows. No spec file, no plan.
+  shape goes into a comment on the issue, then the manager does it in place. No spec file,
+  no plan.
 - **Substantial work** (more than one PR, a new entity or subsystem, an architectural
   decision, a schema change; when unsure, it is substantial) → a spec first, then a plan.
 
@@ -71,8 +73,8 @@ The cycle:
   index goes to the trunk as its own small PR, additive and backward-compatible; the phase
   that uses it starts after that PR merged and the trunk was merged into the feature
   branch.
-- **Implementation happens in fresh sessions**: one worker per sub-issue, reading only
-  this file, the spec, the plan and its issue. The spec session never implements.
+- **Substantial work is implemented in fresh sessions**: one worker per sub-issue, reading
+  only this file, the spec, the plan and its issue. The spec session never implements.
 - **A brainstorm that outgrows its session hands off as a comment** on the seed issue,
   opening with `SUPERSEDING` on its own first line. That comment outranks the issue body,
   which is edited down to a pointer at it. Where two layers of an issue disagree, the one

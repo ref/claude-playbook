@@ -87,10 +87,13 @@ vendor diversity. v2 keeps those levers mandatory and makes the other family a m
   that files them. Answers the manager's questions. Approves the brief. Hand-tests. Merges.
   Runs audits.
 - **Manager.** A desktop session in the project, started with `/do <n>`. One per task or
-  feature; restartable from the umbrella issue. It never writes product code. It interviews,
-  writes the spec and the plan, files sub-issues, spawns workers, relays blockers, reports.
-- **Worker.** A fresh session per sub-issue — a cloud session by default, a local worktree
-  session as fallback — reading only `AGENTS.md`, the spec, the plan and its issue. It
+  feature; restartable from the umbrella issue. On substantial work it never writes product
+  code: it interviews, writes the spec and the plan, files sub-issues, spawns workers,
+  relays blockers, reports. Small work with the decision made it does itself, in place
+  (6.2 step 2). At most one recon subagent, only for substantial work, on a cheap model
+  named explicitly.
+- **Worker.** A fresh session per sub-issue of substantial work — a cloud session by
+  default, a local worktree session as fallback — reading only `AGENTS.md`, the spec, the plan and its issue. It
   implements test-first, runs the gate and the pre-review, commits, pushes, opens the PR with
   evidence, fixes review blockers, and reports to the manager in one line.
 - **Reviewer.** A fresh Claude session per PR head. Launch: a routine on PR events (the PR
@@ -112,10 +115,18 @@ vendor diversity. v2 keeps those levers mandatory and makes the other family a m
 
 1. **Idea → issue.** Two lines are a valid issue.
 2. **`/do <n>`** in a new desktop session (the manager). The stage gate from v1 stays:
-   small work with the decision made → one worker, directly; small work resting on an unmade
-   decision → ask first, questions one at a time (the app's question dialog), the agreed
-   shape goes into an issue comment; substantial work (more than one PR, a new subsystem, a
-   schema change, an architectural choice) → spec and plan first.
+   small work with the decision made → done IN THIS SESSION by the `/do` session itself
+   (branch, test-first, gate, `/ship`; no child session, no subagent, no plan, no spec);
+   small work resting on an unmade decision → ask first, questions one at a time (the app's
+   question dialog), the agreed shape goes into an issue comment, then done in place;
+   substantial work (more than one PR, a new subsystem, a schema change, an architectural
+   choice) → spec and plan first, and child workers only for it. On a UI or design
+   question the manager first asks exactly one question — "Do you want options and a
+   mockup first, or should I just do it and you look at the result?" — and draws or lists
+   options only when the human wants them; "just do it" means the smallest reasonable
+   version. Every option carries its size in plain words, the recommendation is the
+   smallest option that satisfies the issue, and the manager says when the human's pick is
+   several times larger.
 3. **Spec and plan.** Written by the manager, which holds the interview — never delegated.
    Committed in a docs-only PR (`docs/specs/YYYY-MM-DD-<topic>-design.md`,
    `docs/plans/YYYY-MM-DD-<topic>.md`, `Refs #<seed>`), merged by the human (the docs twin
@@ -125,7 +136,8 @@ vendor diversity. v2 keeps those levers mandatory and makes the other family a m
    `SUPERSEDING` comments, evidence classes on claims) carry over unchanged.
    **The human brief**: at most 150 words in the chat, plain words, what changes for the
    user of the product and what the human will be asked to test; a mockup in the artifact
-   pane whenever there is a screen. The human reads the brief, not the spec.
+   pane only when the human chose options and a mockup first. The human reads the brief,
+   not the spec.
 4. **"Go".** The manager spawns workers: one per sub-issue, in parallel where the plan marks
    phases independent, serial otherwise. The brief is a fixed template (section 6.6).
 5. **The worker** cuts its branch from the base (trunk or the feature branch), works
@@ -250,9 +262,12 @@ one dev database.
 First line: `/model <tier>` and `/effort <level>` from the routing table. Then: the
 repository and base branch; the issue number; the paths of the spec and the plan; the phase;
 the definition of done (PR open, gate green, pre-review done, evidence filled, reported);
-the rules pointer (`AGENTS.md`); what is out of scope; how to report (one line to the
-manager: PR number, state, anything blocking). Identical for a cloud session and a local
-worktree session; only the launch differs.
+the rules pointer (`AGENTS.md`); the scope cap (the smallest change that satisfies the
+issue; no refactors; no tests beyond the behavior changed; no tooling set up to produce
+evidence; no subagents; model Sonnet 5.5 at medium unless the manager states a reason; if
+more seems needed, stop and report instead of widening); what is out of scope; how to
+report (one line to the manager: PR number, state, anything blocking). Identical for a
+cloud session and a local worktree session; only the launch differs.
 
 ### 6.7 Model routing (decided 2026-10-17, after the first real task)
 
@@ -368,3 +383,30 @@ Hard rule: the reviewer is never the authoring session. Concrete model names liv
   Rust/Tauri cloud-build spike therefore leaves the first milestone's critical path and
   runs when the second project is adopted. The first adopter's cloud environment needs its
   Docker services (database) in the setup script — builder's item, section 7.
+
+### Decision 2026-10-17, after the first real task
+
+The first task in an adopted project turned a one-line layout change into a process: a recon
+subagent, mockups and three questions nobody asked for, a worker in its own session that
+added width measurement, a portal, fifteen tests, headless-browser screenshots and a
+performance investigation, with the manager and a subagent on the most expensive model. The
+owner decided, and the texts now say:
+
+- **Model rule (6.7):** the model follows the kind of work — task on Sonnet 5.5 at medium,
+  discussion on Opus 5.5 at high, serious thinking on Fable 5.1 at high (maximum only for an
+  audit); child workers on Sonnet 5.5 at medium; subagents named explicitly, never
+  inherited. Three desktop presets (`task`, `talk`, `think`) replace picking by hand.
+- **Small tasks in place (6.1, 6.2):** small work with the decision made is done by the
+  `/do` session itself, with no child session, no subagent, no plan and no spec. Child
+  workers only for substantial work; at most one recon subagent, only there, on a cheap
+  named model.
+- **Ask before mockups and options (6.2):** exactly one question first — options and a
+  mockup, or just do it and look at the result.
+- **Options with their cost (6.2):** every option carries its size; the recommendation is
+  the smallest that satisfies the issue; a pick several times larger is called out.
+- **Worker scope cap (6.6):** the smallest change, no refactors, no extra tests, no
+  evidence tooling, no subagents, stop and report instead of widening.
+- **Screenshots optional (6.4):** only when cheap with tooling the project already has;
+  otherwise "How to test by hand" is the evidence for UI.
+- **A nudge:** a `/do` session on Opus or Fable facing a small, decided task says so in one
+  line and continues.

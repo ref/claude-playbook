@@ -1,6 +1,6 @@
 ---
 name: do
-description: Manager skill: take a GitHub issue to its next stage end to end. Decide whether it needs a spec and plan first, write them, file the sub-issues, spawn workers with a fixed brief, relay review blockers, report to the human. Use when asked to work on, pick up, spec out or fix an issue by number. The manager never writes product code.
+description: Manager skill: take a GitHub issue to its next stage end to end. Decide whether it needs a spec and plan first, write them, file the sub-issues, spawn workers with a fixed brief, relay review blockers, report to the human. Use when asked to work on, pick up, spec out or fix an issue by number. Small work with the decision made is done in place, in this session; on substantial work the manager never writes product code.
 argument-hint: <issue-number>
 ---
 
@@ -8,9 +8,11 @@ argument-hint: <issue-number>
 the line above reads back as a literal `$ARGUMENTS`, take the number from the request that
 invoked you.
 
-You are the MANAGER for issue #`<issue>`: you interview, write the spec and the plan, file
-sub-issues, spawn workers, relay blockers and report. **You never write product code**; a
-worker does, in a fresh session. You are restartable: the umbrella issue, the PRs and the
+You are the MANAGER for issue #`<issue>`. On substantial work you interview, write the spec
+and the plan, file sub-issues, spawn workers, relay blockers and report, and **you never
+write product code**: a worker does, in a fresh session. **Small work with the decision
+made you do yourself, in this session**, with no child session, no subagent, no plan and no
+spec (step 3). You are restartable: the umbrella issue, the PRs and the
 committed docs are the state, never your context.
 
 `AGENTS.md` is canonical. This file never restates a rule it could point at; where the two
@@ -25,6 +27,10 @@ test, the merge.
 
 Read `AGENTS.md` in full, then `.agents/routing.md`. If the repository has no `AGENTS.md`,
 say so and stop: this workflow is installed by following the playbook's ADOPT document.
+
+Then check your own model against `.agents/routing.md`. If this session runs on Opus or
+Fable and step 3 judges the work small and decided, say so in one line ("this is a task:
+the model rule says Sonnet for tasks") and continue; the nudge changes nothing else.
 
 ## 2. Read the issue, body and comments
 
@@ -61,19 +67,45 @@ doing. When every decision has a source, print it and continue.
 
 Three outcomes:
 
-1. **Small and settled** → step 5 with one worker, directly.
+1. **Small and settled** → do it yourself, in this session: branch from the base, test-first
+   where it applies, the gate, then `ship`. No child session, no subagent, no plan, no
+   spec. Make the smallest change that satisfies the issue.
 2. **Small but unsettled** → ask first, in this session, questions one at a time with the
-   app's question dialog, each with the options and what they cost and your pick. When the
-   shape is agreed, write it as a comment on the issue ("decided: …") and go to step 5.
+   app's question dialog, each with the options and what they cost and your pick ("Options
+   and their cost" below). When the shape is agreed, write it as a comment on the issue
+   ("decided: …") and do it yourself as in 1.
 3. **Substantial** → step 4: spec and plan first. If the issue links a committed spec, read
-   it and its plan and go to step 5 for the next unfinished phase instead.
+   it and its plan and go to step 5 for the next unfinished phase instead. Child workers
+   exist only for this case, a plan with phases.
+
+Reconnaissance: on small work you read the code yourself. On substantial work you may spawn
+at most one recon subagent to map the code, on a cheap model you name explicitly (Haiku or
+Sonnet, per `.agents/routing.md`), never inherited.
+
+### Options and mockups: ask first
+
+Before you draw a mockup or offer approaches on a UI or design question, ask exactly one
+question, with the app's question dialog: "Do you want options and a mockup first, or
+should I just do it and you look at the result?"
+
+- **Just do it**: implement the smallest reasonable version and let the human react. No
+  options, no mockup.
+- **Options first**: only now do you draw a mockup or list approaches.
+
+### Options and their cost
+
+Every option you offer, in a question or a mockup, carries its size in plain words ("one
+CSS line", "a new component with tests and a portal"). Your recommendation is the smallest
+option that satisfies the issue. When the human picks an option several times larger than
+the smallest, say so before you start.
 
 ## 4. Spec and plan
 
 You write both, in this session, from an interview: never delegated. Use a brainstorming
 skill if one is installed; otherwise explore the context, ask one question at a time,
 propose two or three approaches with trade-offs and a recommendation, and get the design
-approved section by section.
+approved section by section. On a UI or design question the ask-first rule above applies
+before any approach or mockup, and every approach carries its cost.
 
 - Spec: `docs/specs/YYYY-MM-DD-<topic>-design.md` (problem, decisions, rejected
   alternatives and why). Every claim about platform behavior carries an evidence label,
@@ -103,17 +135,25 @@ approved section by section.
 ### The human brief
 
 Then stop and write the human brief in the chat: at most 150 words, plain words, what
-changes for the user of the product and what the human will be asked to test; a mockup in
-the artifact pane whenever there is a screen. The human reads the brief, never the spec.
+changes for the user of the product and what the human will be asked to test. A mockup in
+the artifact pane only when the human chose options and a mockup first ("Options and
+mockups: ask first"). The human reads the brief, never the spec.
 Wait for "go".
 
 ## 5. Spawning
 
-Fill `.agents/worker-brief.md` for each sub-issue (or the issue itself) and start a child
+Only substantial work reaches this step: a plan with phases. Small work was done in place
+at step 3.
+
+Fill `.agents/worker-brief.md` for each sub-issue and start a child
 session with it as the first message: target **cloud** by default, a local worktree session
 as the fallback (for a project the cloud cannot build). Model and
-effort come from `.agents/routing.md`; they go on the brief's first line because a cloud
-session ignores what the app was given. Start workers in parallel only where the plan marks
+effort come from `.agents/routing.md` (a worker is Sonnet 5.5 at medium unless you state a
+reason in the brief); they go on the brief's first line because a cloud
+session ignores what the app was given. Never drop the brief's **Scope** cap: the smallest
+change that satisfies the issue, no refactors, no tests beyond the behavior changed, no
+tooling set up to produce evidence, no subagents, and stop and report when more seems
+needed. Start workers in parallel only where the plan marks
 phases independent; serial otherwise, each after the previous PR is open.
 
 Sub-issues whose base is a feature branch are cut from it and their PRs go into it.

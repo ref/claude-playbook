@@ -13,7 +13,7 @@ Closes #<n>
 
 ## Evidence
 
-<!-- The gate's final lines, the tests added by name, screenshots for UI changes, the pre-review's summary. -->
+<!-- The gate's final lines, the tests added by name, the pre-review's summary. A screenshot only when one is cheap with tooling the project already has; otherwise "How to test by hand" is the evidence for UI. Never set up a browser or screenshot pipeline for a PR. -->
 
 ## Tests changed
 

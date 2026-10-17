@@ -99,8 +99,10 @@ reviewer tests them for truth.
 - **`## How to test by hand`:** at most five concrete steps, where to go, what to click,
   what must happen; the only section the human reads before testing. For a feature ship:
   the whole feature end to end on the feature branch.
-- **`## Evidence`:** the gate's final lines, the tests added by name, screenshots for UI
-  changes, the pre-review's summary. Real output, never a claim.
+- **`## Evidence`:** the gate's final lines, the tests added by name, the pre-review's
+  summary. Real output, never a claim. A screenshot only when one is cheap with tooling the
+  project already has; otherwise `## How to test by hand` is the evidence for UI. Never set
+  up a browser or screenshot pipeline for a PR.
 - **`## Tests changed`:** `none`, or every deleted, skipped or weakened test with the
   reason. `test-integrity` fails a weakened test that is not declared here.
 - **`## Docs`:** `* <file> — <what changed>` bullets for every doc the diff makes stale, or
