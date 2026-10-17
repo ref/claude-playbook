@@ -13,7 +13,16 @@ not say, that is a bug in this page: file it.
 Four touchpoints, and only four: you answer the manager's planning questions, you say
 "go", you hand-test, you approve and merge.
 
-- **Starting a task**: type `/do <n>` in a new desktop session.
+- **Picking the model** (the table is in `.agents/routing.md`; SETUP section 7 makes the
+  three presets so you never pick by hand):
+  - TASK (`/do`, `/review`, `/status`, `/playbook-update`, small fixes): Sonnet 5.5,
+    effort medium.
+  - DISCUSSION (designing a feature, spec and plan, a hard bug): Opus 5.5, effort high.
+  - SERIOUS THINKING (architecture, `/audit` of a whole feature, a second opinion): Fable
+    5.1, effort high; maximum effort only for an audit.
+  - Effort is how long the model thinks per step: medium is normal; high is slower and
+    costs roughly 1.5–2×.
+- **Starting a task**: type `/do <n>` in a new desktop session on the task model.
   That session is the manager: it reads `AGENTS.md` and issue #n including its comments,
   decides what the issue needs (a spec and plan first, one question first, or a worker
   right away), and reports back. For substantial work it interviews you, writes the spec and
@@ -105,8 +114,10 @@ reaches the trunk, and so the deploy, in ONE PR after you have tried it. Your pa
 
 ## Routing
 
-Which model plays which role, and at what effort, is in `.agents/routing.md`; it is the one
-file to edit when models change. The manager may raise a tier with a reason.
+Which model does which kind of work, and at what effort, is in `.agents/routing.md`; it is
+the one file to edit when models change. Child workers run on Sonnet 5.5 at medium unless
+the manager states a reason in the brief; subagents are always named explicitly, never
+inherited.
 
 ## Dependency cooldowns (supply chain)
 

@@ -51,7 +51,7 @@ enter this pipeline through the human's words or not at all.
 
 The cycle:
 
-- **Spec and plan are written by the manager, in one session, by the strongest tier**
+- **Spec and plan are written by the manager, in one session, on the discussion tier**
   ("Model routing"), after an interview with the human: questions one at a time,
   alternatives with trade-offs. The spec records the decisions and the rejected
   alternatives; the plan decomposes them into phases, each sized to one PR, written for an
@@ -236,8 +236,9 @@ share ONE dev database:
 
 The current names and effort levels are in `.agents/routing.md`. The invariants:
 
-- Specs, architecture, decisions → the strongest tier available. Spec errors multiply.
-- Execution → a mid tier; the cheapest tier that keeps the gate green for mechanical work.
+- Tasks and execution → the cheap tier. Designing, specs and plans → the middle tier;
+  architecture, audits and second opinions → the strongest. Spec errors multiply.
+- Subagents are named explicitly on a cheap tier, never inherited from their parent.
 - The reviewer is never the authoring session: a fresh context and verification by
   execution are what make a review worth having.
 

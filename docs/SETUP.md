@@ -173,7 +173,7 @@ In the Claude app create a routine for the repository:
   pull request (the `synchronize` event). If the routine UI offers fewer events, the spike
   records which ones; a trigger on open alone is not enough, because every push needs a
   fresh verdict.
-- Model and effort: the reviewer row of `.agents/routing.md` (currently Opus 5.5, medium).
+- Model and effort: the reviewer row of `.agents/routing.md` (currently Sonnet 5.5, medium).
 - Prompt, literally: "Run `/review <pr>` as `.agents/skills/review/SKILL.md` describes, for
   the pull request this event names."
 
@@ -210,6 +210,14 @@ In the Claude desktop app:
   `<type>/<short-name>` from `AGENTS.md`.
 - [ ] `git config core.hooksPath .githooks` in every clone (the setting is per clone; the
   verification checklist in `docs/ADOPT.md` checks it).
+- [ ] Three session presets, so you never pick a model by hand (the table they follow is
+  `.agents/routing.md`; effort is how long the model thinks per step: medium is normal,
+  high is slower and costs roughly 1.5–2×):
+  - `task`: Sonnet 5.5, effort medium. For `/do`, `/review`, `/status`,
+    `/playbook-update` and small fixes.
+  - `talk`: Opus 5.5, effort high. For designing a feature, spec and plan, a hard bug.
+  - `think`: Fable 5.1, effort high. For architecture, `/audit` of a whole feature, a
+    second opinion; raise the effort to maximum only for an audit.
 
 *Later (machine users):* the `agent` and `reviewer` presets of section 3.
 

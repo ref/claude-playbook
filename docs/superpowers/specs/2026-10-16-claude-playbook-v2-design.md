@@ -254,19 +254,27 @@ the rules pointer (`AGENTS.md`); what is out of scope; how to report (one line t
 manager: PR number, state, anything blocking). Identical for a cloud session and a local
 worktree session; only the launch differs.
 
-### 6.7 Model routing (defaults; the manager may raise a tier with a reason)
+### 6.7 Model routing (decided 2026-10-17, after the first real task)
 
-| Role | Tier | Effort |
+The model follows the kind of work, in three lines the human can remember:
+
+| Kind of work | Tier | Effort |
 |---|---|---|
-| Manager, spec and plan | strongest available | high |
-| Worker | mid tier | medium; high for a phase the plan marks cross-cutting |
-| Pre-review in the worker | the worker's own session | — |
-| Reviewer routine | mid tier | medium |
-| Audit | strongest available | maximum |
+| Task: `/do`, `/review`, `/status`, `/playbook-update`, small fixes | cheap | medium |
+| Discussion: designing a feature, spec and plan, a hard bug | middle | high |
+| Serious thinking: architecture, `/audit` of a whole feature, a second opinion | strongest available | high; maximum only for an audit |
+| Child worker | cheap | medium |
+| Subagent inside any session | the cheapest tier that does the job, named explicitly, never inherited | — |
+| Reviewer routine | cheap | medium |
+
+Effort is how long the model thinks per step: medium is normal; high is slower and costs
+roughly 1.5–2×. The desktop app gets three presets (`task`, `talk`, `think`, `docs/SETUP.md`
+section 7) so the human never picks a model by hand. The manager may raise a worker's tier
+with a reason in the brief; it does not lower one.
 
 Hard rule: the reviewer is never the authoring session. Concrete model names live in
-`docs/RUNBOOK.md`'s routing table, which is updated as models change; `AGENTS.md` carries
-only the principles.
+`.agents/routing.md`, the single table the other texts point at, updated as models change;
+`AGENTS.md` carries only the principles.
 
 ### 6.8 Audits
 
