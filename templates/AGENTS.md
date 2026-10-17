@@ -183,8 +183,8 @@ share ONE dev database:
 - The PR title becomes the squash-commit title: a conventional commit.
 - Fill the PR template honestly, every section (the template has the details):
   `## What changed`, `## How to test by hand` (the only section the human reads before
-  testing), `## Evidence` (gate output, tests added by name, screenshots for UI, the
-  pre-review's summary), `## Tests changed`, `## Docs`, `## Risk nearby`.
+  testing), `## Evidence` (gate output, tests added by name, a screenshot for UI only
+  when one is cheap with tooling the project already has, the pre-review's summary), `## Tests changed`, `## Docs`, `## Risk nearby`.
 - `## Docs` is machine-required: `* <file> — <what changed>` bullets, or
   `Docs: none — <reason>`. Doc drift is a bug: if the diff changes behavior described in
   `README.md`, this file or `docs/*`, the same PR updates the doc. Anything the human runs

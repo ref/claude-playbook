@@ -227,7 +227,9 @@ vendor diversity. v2 keeps those levers mandatory and makes the other family a m
 Template sections, all machine-checked for presence: the issue link (`Closes #n` /
 `Refs #n`), `## What changed` (three lines), `## How to test by hand` (at most five steps,
 the only section the human reads before testing), `## Evidence` (the gate's final lines,
-the tests added by name, screenshots for UI, the pre-review's summary), `## Tests changed`
+the tests added by name, the pre-review's summary; a screenshot only when one is cheap
+with tooling the project already has, otherwise "How to test by hand" is the evidence for
+UI, and a browser or screenshot pipeline is never set up for a PR), `## Tests changed`
 (`none`, or every deleted, skipped or weakened test with the reason), `## Docs`
 (`* <file> — <what>` bullets or `Docs: none — <reason>`), `## Risk nearby`.
 
