@@ -50,6 +50,24 @@ posted comment is the value of the repository variable `REVIEWER_LOGINS` (SETUP 
 | 6 | Whether the status API call succeeded | |
 | 7 | Time from PR open to comment, and limits consumed (from the session's usage view) | |
 
+## Observed 2026-10-18
+
+The first cloud environment of an adopted pnpm/TypeScript project with Postgres, seen in a
+real cloud session (this is the environment, not the table above):
+
+- The setup script runs as root with the working directory `/home/user`; the repository is
+  cloned to `/home/user/<repo>`.
+- Node 22 is the default (the project required 24). corepack's pnpm download failed; pnpm
+  was installed with `npm`.
+- The `docker` CLI exists but no daemon runs, so `docker compose` cannot start a database.
+- PostgreSQL 16 is pre-installed and not running. `service postgresql start` works; data
+  files persist in the environment cache, running processes do not.
+- A setup script that exits non-zero prevents the session from starting; scripts over about
+  five minutes are not cached.
+
+Still open: the login a cloud push and PR appear under (rows 1 and 5), which decides
+Required approvals and `REVIEWER_LOGINS`.
+
 ## Decision rule
 
 `routine` if a routine fires on PR open and on push (rows 3 and 4 both yes, and rows 2, 5
