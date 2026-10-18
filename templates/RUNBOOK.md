@@ -13,16 +13,18 @@ not say, that is a bug in this page: file it.
 Four touchpoints, and only four: you answer the manager's planning questions, you say
 "go", you hand-test, you approve and merge.
 
-- **Picking the model** (the table is in `.agents/routing.md`; SETUP section 7 makes the
-  three presets so you never pick by hand):
+- **Picking the model** (the table is in `.agents/routing.md`). The model and effort picker
+  sits in the composer next to the send button and remembers your last choice, so the
+  normal state is Sonnet 5.5 at medium; switch to think, then switch back:
   - TASK (`/do`, `/review`, `/status`, `/playbook-update`, small fixes): Sonnet 5.5,
-    effort medium.
+    effort medium. The normal state.
   - DISCUSSION (designing a feature, spec and plan, a hard bug): Opus 5.5, effort high.
   - SERIOUS THINKING (architecture, `/audit` of a whole feature, a second opinion): Fable
     5.1, effort high; maximum effort only for an audit.
   - Effort is how long the model thinks per step: medium is normal; high is slower and
     costs roughly 1.5–2×.
-- **Starting a task**: type `/do <n>` in a new desktop session on the task model.
+- **Starting a task**: type `/do <n>` in a new desktop session, started from this
+  repository's Local environment (the Worktree checkbox on), on the task model.
   That session is the manager: it reads `AGENTS.md` and issue #n including its comments,
   decides what the issue needs (a spec and plan first, one question first, or a worker
   right away), and reports back. For substantial work it interviews you, writes the spec and
@@ -179,6 +181,7 @@ can do the other's job:
 | `review-verdict` missing or `no verdict for <sha>` | See "When a verdict never lands" |
 | `review-verdict` says `repository variable REVIEWER_LOGINS is not set` | Set the repository variable `REVIEWER_LOGINS` to the login the reviewer's verdict comments appear under (SETUP) |
 | A merged sub-PR left its issue open or its umbrella line unticked | Open the Feature merge run on that PR: the body had no `Closes #N`, or the umbrella line is not in the `- [ ] #N` form. Fix the line by hand this once |
+| A DB-backed test fails in a cloud session with "connection refused" | The database runs only while a session does: the SessionStart hook (`.agents/cloud-session-start.sh`) starts it. Run `service postgresql start` and rerun. Node and pnpm come from the environment's setup script (`/tmp/setup.log` in the session shows what it did) |
 | `ship` refused a sub-task for touching the schema | By design: a schema change goes to the trunk as its own small PR, then the task rebases onto it |
 | The approve you see was for another sha | `approve carried from <sha>` means identical content; anything else needs a fresh verdict, so wait for the reviewer or run `/review <n>` |
 | An agent's push was rejected on a path under `.github/workflows` or `.agents` | Only with the later machine-user setup (a push ruleset): the change is a PR you push yourself |

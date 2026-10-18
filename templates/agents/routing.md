@@ -3,7 +3,9 @@
 `AGENTS.md` carries the principles (the strongest tier thinks, a cheap tier executes, the
 reviewer is never the author's session); this file carries the current model names and is
 the only place to edit when models change. The human picks the model of a session by the
-kind of work, never by hand each time.
+kind of work: the composer's model and effort picker remembers the last choice, so Sonnet
+5.5 at medium stays the normal state, and a session that needs to think switches to Fable
+5.1 at high and back.
 
 | Kind of work | Model | Effort |
 |---|---|---|

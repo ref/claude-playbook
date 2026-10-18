@@ -250,9 +250,11 @@ The current names and effort levels are in `.agents/routing.md`. The invariants:
 - Commands time out at two minutes in the foreground; run long suites in the background and
   poll for the result.
 - GitHub: REST through `gh api` only. No GraphQL.
-- Services the tests need come from the environment's setup script. A suite whose service
-  is missing in a cloud session fails: the setup script must provide the service and its
-  variables, and a failure there is reported, not skipped.
+- Node and pnpm come from the environment's setup script. There is no Docker daemon; the
+  database is the pre-installed PostgreSQL, started in every session by the SessionStart
+  hook (`.agents/cloud-session-start.sh`). A DB-backed test that fails with "connection
+  refused" means the server is down: run `service postgresql start`, then rerun. A suite
+  whose service is missing fails, it does not skip, and the failure is reported.
 - Skills and rules are repository files, read from `AGENTS.md` and `.agents/`; nothing
   outside the repository (plugins, `~/.claude`) is available.
 

@@ -285,8 +285,9 @@ The model follows the kind of work, in three lines the human can remember:
 | Reviewer routine | cheap | medium |
 
 Effort is how long the model thinks per step: medium is normal; high is slower and costs
-roughly 1.5–2×. The desktop app gets three presets (`task`, `talk`, `think`, `docs/SETUP.md`
-section 7) so the human never picks a model by hand. The manager may raise a worker's tier
+roughly 1.5–2×. The desktop app has no presets: the model and effort picker in the composer
+remembers the last choice (`docs/SETUP.md` section 7), so Sonnet 5.5 at medium is the
+normal state and the human switches to Fable 5.1 at high to think, then back. The manager may raise a worker's tier
 with a reason in the brief; it does not lower one.
 
 Hard rule: the reviewer is never the authoring session. Concrete model names live in
@@ -397,7 +398,8 @@ owner decided, and the texts now say:
 - **Model rule (6.7):** the model follows the kind of work — task on Sonnet 5.5 at medium,
   discussion on Opus 5.5 at high, serious thinking on Fable 5.1 at high (maximum only for an
   audit); child workers on Sonnet 5.5 at medium; subagents named explicitly, never
-  inherited. Three desktop presets (`task`, `talk`, `think`) replace picking by hand.
+  inherited. The composer's model and effort picker remembers the last choice: Sonnet 5.5
+  at medium is the normal state, Fable 5.1 at high is switched to for thinking.
 - **Small tasks in place (6.1, 6.2):** small work with the decision made is done by the
   `/do` session itself, with no child session, no subagent, no plan and no spec. Child
   workers only for substantial work; at most one recon subagent, only there, on a cheap
