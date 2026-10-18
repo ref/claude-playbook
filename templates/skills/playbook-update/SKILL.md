@@ -50,7 +50,8 @@ compare it with the installed file. Two classes:
 - **Owned by the project, report only**: `AGENTS.md`, `docs/RUNBOOK.md` and
   `.github/workflows/ci.yml` (they grow with the repository, and `ci.yml` has its steps
   trimmed to the project's scripts), `.claude/settings.json` (merged, never replaced),
-  `.github/dependabot.yml` (it may carry extra ecosystems). If the template holds an
+  `.github/dependabot.yml` (it may carry extra ecosystems), `.agents/cloud-session-start.sh`
+  (the project adapts it to its services). If the template holds an
   improvement the project would want, name it to the human and stop: never apply it, never
   fold it into the sync PR. The one exception is prose that describes the installed machinery
   falsely: show the exact replacement and apply it on a yes.

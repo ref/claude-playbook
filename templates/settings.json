@@ -2,5 +2,18 @@
   "attribution": {
     "commit": "",
     "pr": ""
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f .agents/cloud-session-start.sh && sh .agents/cloud-session-start.sh || true",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
   }
 }

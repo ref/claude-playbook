@@ -24,6 +24,7 @@ const SINGLE_FILE_MAP = {
   'pull_request_template.md': '.github/pull_request_template.md',
   'dependabot.yml': '.github/dependabot.yml',
   'settings.json': '.claude/settings.json',
+  'cloud-session-start.sh': '.agents/cloud-session-start.sh',
   worktreeinclude: '.worktreeinclude',
   'AGENTS.md': 'AGENTS.md',
   'CLAUDE.md': 'CLAUDE.md',

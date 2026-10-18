@@ -23,8 +23,9 @@ exact diff and getting a yes**, one file at a time. A destination that does not 
 you may write freely. Two standing cases:
 
 - An existing `.claude/settings.json` is MERGED, never replaced: the template owns only the
-  `attribution` keys (both empty, so no trailer is added); the repository's own settings,
-  permissions and hooks beside them are untouched. The template carries no allow rule: no
+  `attribution` keys (both empty, so no trailer is added) and one `SessionStart` hook that
+  runs `.agents/cloud-session-start.sh` when the file exists; the repository's own settings,
+  permissions and hooks beside them (its own `SessionStart` hooks included) are untouched. The template carries no allow rule: no
   skill runs the script modules locally, and a wildcard such as `node .agents/scripts/*`
   would also match `node .agents/scripts/../../anything`.
 - An occupied `core.hooksPath` (husky, lefthook) is never re-pointed: offer chaining
@@ -48,11 +49,17 @@ toolchain is out of scope: say so and stop.
 | `pull_request_template.md`, `dependabot.yml` | `.github/` |
 | `githooks/pre-push` | `.githooks/pre-push` (executable) |
 | `settings.json` | `.claude/settings.json` (merge, Rule 0) |
+| `cloud-session-start.sh` | `.agents/cloud-session-start.sh` (project-owned, installed once) |
 | `worktreeinclude` | `.worktreeinclude` |
 
 Not installed: the playbook's own `scripts/smoke.test.mjs`, `scripts/check-templates*` and
 `cloud-setup.sh` (the latter is pasted into the cloud environment by the human, SETUP §6;
 show them the project-adapted version at the end).
+
+Project-owned, installed once and never overwritten: `.agents/cloud-session-start.sh` (it
+starts the cloud session's database, so the project adapts it), `AGENTS.md`, `CLAUDE.md`,
+`docs/RUNBOOK.md`, `.github/workflows/ci.yml`, `.github/dependabot.yml` and the merged
+`.claude/settings.json`. `playbook-update` reports their drift and leaves them alone.
 
 Also write:
 
