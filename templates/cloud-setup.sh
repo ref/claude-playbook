@@ -1,13 +1,21 @@
 #!/bin/bash
 # Setup script for the Claude cloud environment `<repo>`, which workers and the reviewer
 # share. Paste it into the environment's setup-script field (section 6 of the playbook's SETUP page) and
-# adapt the three marked lines to the project. It runs once as root, in /home/user, and the
+# adapt the lines marked ADAPT to the project. It runs once as root, in /home/user, and the
 # result is cached. It must finish in under five minutes, or the environment is not cached
 # and every session pays for it again. A setup script that exits non-zero stops the session
 # from starting, so this one never does: every step ends in `|| true` and the log is the
 # place to look (/tmp/setup.log, read it in a session when something is missing).
 exec >> /tmp/setup.log 2>&1
 set -x
+
+# Git identity for commits made in the cloud. Without it the VM commits as its default user
+# "Claude", and GitHub then adds "Co-authored-by: Claude <noreply@anthropic.com>" to every
+# squash merge: an AI attribution the playbook forbids.
+# ADAPT: your GitHub name and your GitHub noreply (<id>+<login>@users.noreply.github.com)
+# or public email; never a placeholder left in.
+git config --global user.name "<your GitHub name>" || true
+git config --global user.email "<your GitHub noreply or public email>" || true
 
 # The repository is cloned to /home/user/<repo-name>, but the script starts in /home/user.
 # ADAPT: the repository's name (keep the quotes).
