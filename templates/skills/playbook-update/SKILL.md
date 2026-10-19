@@ -29,7 +29,9 @@ A fresh clone every time, never a stale copy. Delete the temporary directory whe
 ## 3. Fast path
 
 If `git -C <tmpdir> rev-parse HEAD` equals the lock's `commit`: report `up to date at <sha>`,
-give the doc-size report (step 6), write nothing, stop.
+still run step 5's diff of the project-owned files against the current templates (the lock
+can say `up to date` while a hunk never reached them), give the doc-size report (step 6),
+write nothing the human did not say yes to, stop.
 
 ## 4. The delta
 
@@ -47,14 +49,22 @@ is the default branch name (`gh api repos/{owner}/{repo} --jq .default_branch`),
 replaces the template's one double-brace placeholder. For every template file, render it and
 compare it with the installed file. Two classes:
 
-- **Owned by the project, report only**: `AGENTS.md`, `docs/RUNBOOK.md` and
+- **Owned by the project, merged hunk by hunk**: `AGENTS.md`, `docs/RUNBOOK.md` and
   `.github/workflows/ci.yml` (they grow with the repository, and `ci.yml` has its steps
-  trimmed to the project's scripts), `.claude/settings.json` (merged, never replaced),
-  `.github/dependabot.yml` (it may carry extra ecosystems), `.agents/cloud-session-start.sh`
-  (the project adapts it to its services). If the template holds an
-  improvement the project would want, name it to the human and stop: never apply it, never
-  fold it into the sync PR. The one exception is prose that describes the installed machinery
-  falsely: show the exact replacement and apply it on a yes.
+  trimmed to the project's scripts), `.claude/settings.json`, `.github/dependabot.yml` (it
+  may carry extra ecosystems), `.agents/cloud-session-start.sh` (the project adapts it to
+  its services). These are never overwritten and never skipped: **on every run, the fast
+  path included, diff the installed file against the CURRENT rendered template**, not
+  against the delta between the two lock commits. A hunk that landed upstream long ago and
+  never reached the project is exactly what this catches. Show
+  the diff hunk by hunk, say for each what it is and why (the upstream commit message where
+  there is one), and offer to apply it; apply a hunk only on the human's yes for that hunk.
+  Merge, never overwrite: a hunk that is the project's own adaptation (an extra ecosystem,
+  a trimmed step, a service the project starts) is shown as such and not offered for removal.
+  The merge of `.claude/settings.json` is by key: the template owns the `attribution` keys,
+  its own `permissions.allow` entries (an installed entry that an upstream commit replaced,
+  such as an old wildcard rule, is offered for replacement) and its own hook entries; every
+  other key, allow rule and hook of the project stays.
 - **Kept identical to the playbook**: everything else adoption installed: the skills, the
   three script modules with their tests, the other workflows, the PR template, the pre-push
   hook, the worker brief and routing files. Compare byte for byte; a difference is drift to
@@ -81,3 +91,19 @@ One branch, one PR, `chore: sync playbook files`, with the lock rewritten in the
 Keep the existing `docs` lines. The PR body lists, per file, what changed and why (the
 upstream commit messages). The PR touches the gates, so the human reviews it with
 particular care.
+
+## 8. The report (every run)
+
+End with a report that a reader can check against this list:
+
+- the lock commit and the playbook HEAD;
+- per kept-identical file: synced, already identical, or declined;
+- per project-owned file: identical to the template, or the hunks applied and the hunks
+  **declined**. A run that found a difference in a project-owned file and applied nothing
+  still says so: file name and the declined hunks, never silence and never "nothing to do";
+- new and removed upstream files and what was decided;
+- the doc-size report.
+
+Checklist before reporting: all six project-owned files were diffed against the current
+template (a missing one is named, not skipped), and none was diffed only against the lock
+delta.

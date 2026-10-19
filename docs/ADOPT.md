@@ -63,7 +63,13 @@ show them the project-adapted version at the end).
 Project-owned, installed once and never overwritten: `.agents/cloud-session-start.sh` (it
 starts the cloud session's database, so the project adapts it), `AGENTS.md`, `CLAUDE.md`,
 `docs/RUNBOOK.md`, `.github/workflows/ci.yml`, `.github/dependabot.yml` and the merged
-`.claude/settings.json`. `playbook-update` reports their drift and leaves them alone.
+`.claude/settings.json`. `playbook-update` never overwrites them, but on every run it diffs
+each against the current template (not only against the delta between the lock's commits),
+shows the diff hunk by hunk, and applies a hunk only on the human's yes, merging rather than
+replacing: for `.claude/settings.json` the template owns the `attribution` keys, its own
+`permissions.allow` entries and its own hook entries, and the project's other keys, allow
+rules and hooks stay. A run that finds a difference and applies nothing still reports the
+file and the declined hunks.
 
 Also write:
 
