@@ -64,7 +64,9 @@ Four touchpoints, and only four: you answer the manager's planning questions, yo
     against the base is identical (an "Update branch" or a rebase), so the earlier approve
     stands. Re-approve on GitHub after the update; you do not need to re-test.
   - `blocker for <sha>`: the reviewer found something; the author is fixing it.
-  - `no verdict for <sha>`: no verdict yet for this head. See the next section.
+  - `no verdict for <sha>; waiting for the reviewer` (yellow, pending): the reviewer has
+    not posted for this head yet; it starts by itself and usually takes a few minutes.
+    Still yellow long after that: see the next section.
 - The reviewer's comment opens with `Reviewed-by: claude/<model>, head <sha>`; read its body
   for the `## Not executed` list: whatever the reviewer could not run is yours to weigh.
 - A feature PR adds one rule: never merge it before you have tried the feature branch

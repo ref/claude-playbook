@@ -7,7 +7,8 @@ name: review-verdict
 # re-evaluate it; the ruleset requires that status context.
 #
 # The job reports failure only through the status, never through its own exit code, so a
-# failed evaluation does not show up twice. The job is named `evaluate`, NOT
+# failed evaluation does not show up twice. A head with no verdict yet gets `pending`
+# (yellow), not `failure`: the reviewer is still working, and pending blocks a merge too. The job is named `evaluate`, NOT
 # `review-verdict`: a check run with the status's name would always be green and could
 # satisfy a required check of that name in place of the status.
 #
@@ -120,9 +121,14 @@ jobs:
           set -e
 
           reason=$(printf '%s' "$result" | jq -r '.reason // "evaluation failed"' 2>/dev/null || echo "evaluation failed")
+          state=$(printf '%s' "$result" | jq -r '.state // ""' 2>/dev/null || echo "")
           echo "$result"
+          # No verdict yet is the reviewer still working, not a failure: pending shows yellow
+          # and blocks a merge exactly as failure does. Red is for a blocker or an error.
           if [ "$code" -eq 0 ]; then
             post_status success "$reason"
+          elif [ "$state" = none ]; then
+            post_status pending "$reason; waiting for the reviewer"
           else
             post_status failure "$reason"
           fi

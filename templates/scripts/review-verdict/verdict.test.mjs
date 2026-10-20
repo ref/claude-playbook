@@ -283,6 +283,18 @@ test('the workflow computes patch-ids with the pipeline these tests probe', () =
   assert.doesNotMatch(workflowText, /patch-id --(?:stable|unstable)/);
 });
 
+// A head nobody has reviewed yet is waiting, not failed: the status goes yellow (pending,
+// which blocks a merge just like failure) and turns red only for a blocker. The mapping is
+// in the workflow's shell, so it is pinned here.
+test('the workflow posts pending only while no verdict exists, failure otherwise', () => {
+  assert.match(
+    workflowText,
+    /elif \[ "\$state" = none \]; then\n\s+post_status pending "\$reason; waiting for the reviewer"/,
+  );
+  assert.match(workflowText, /else\n\s+post_status failure "\$reason"/);
+  assert.equal(workflowText.match(/post_status pending/g)?.length, 1);
+});
+
 function git(cwd, ...args) {
   const res = spawnSync('git', ['-c', 'commit.gpgsign=false', ...args], {
     cwd,
