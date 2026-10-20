@@ -18,7 +18,8 @@ An Orca worker gets model and effort as launch flags instead, so its brief drops
 **Phase:** <the plan's phase for this issue, or "whole issue">
 **Definition of done:** the PR is open against the base branch; the full gate is green; the
 pre-review (`/code-review` on your own diff) is done and its findings fixed; the PR body
-sections are filled with real evidence; you have reported.
+sections are filled with real evidence; the wait after the PR (`ship` step 6) ended green
+or needs the human; you have reported.
 **Rules:** read `AGENTS.md` first, then the spec, the plan and the issue (body and
 comments). Follow `.agents/skills/ship/SKILL.md` to open the PR. In a cloud session every
 GitHub call is `gh api` (REST).

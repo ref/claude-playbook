@@ -66,7 +66,7 @@ compare it with the installed file. Two classes:
   such as an old wildcard rule, is offered for replacement) and its own hook entries; every
   other key, allow rule and hook of the project stays.
 - **Kept identical to the playbook**: everything else adoption installed: the skills, the
-  three script modules with their tests, the other workflows, the PR template, the pre-push
+  script modules with their tests, the other workflows, the PR template, the pre-push
   hook, the worker brief and routing files. Compare byte for byte; a difference is drift to
   sync. Show the diff, write on the human's yes.
 

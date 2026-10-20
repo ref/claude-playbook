@@ -4,6 +4,9 @@
     "pr": "",
     "sessionUrl": false
   },
+  "permissions": {
+    "allow": ["Bash(node .agents/scripts/pr-wait/wait.mjs:*)"]
+  },
   "hooks": {
     "SessionStart": [
       {

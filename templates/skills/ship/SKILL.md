@@ -1,10 +1,11 @@
 ---
 name: ship
-description: Take a finished task branch to a pull request: rebase onto its base, run the full gate, run the pre-review, push, open the PR through the REST API with the evidence sections filled. On a feature branch, ship the whole feature to the trunk. Use when asked to ship, push or open a PR for the current branch.
+description: Take a finished task branch to a pull request: rebase onto its base, run the full gate, run the pre-review, push, open the PR through the REST API with the evidence sections filled, then wait for the checks and the reviewer, fix what goes red and tell the human when it is ready. On a feature branch, ship the whole feature to the trunk. Use when asked to ship, push or open a PR for the current branch.
 ---
 
 You are shipping the current branch: bring it up to date with its base, run the gate, run
-the pre-review, push, open the PR. Run this when the work is done and committed.
+the pre-review, push, open the PR, then wait for the checks and the reviewer and act on
+the outcome. Run this when the work is done and committed.
 
 **`AGENTS.md` "Getting to the trunk" is canonical**: it defines this ritual and this file
 executes it. Where they disagree, `AGENTS.md` wins and this file is the bug. A red step
@@ -114,9 +115,45 @@ If the diff touches something `AGENTS.md` flags as one-branch-at-a-time (a schem
 generated artifact), say so and confirm the generated artifact is in this PR. If test-first
 did not apply (docs, config, pure deletion), say so outright.
 
-## 6. Hand off
+## 6. Wait for the checks and the reviewer, then report
 
-The reply to the manager is one line: the PR number, its state, and anything blocking.
-Print the number as the report. The review runs by itself on the head; a blocker comes back
-to you through the app, and you fix it and push again. You never merge, never approve, and
-green CI is not permission to merge.
+`AGENTS.md` "After the PR is open" is canonical for this step. After every push to the PR
+(the one that opened it, and every fix push after it), start the wait in the background
+(the Bash tool's `run_in_background`, timeout 40 minutes, longer than the wait's own 30),
+with the sha you just pushed (`git rev-parse HEAD`) written out literally, so the command
+matches its allow rule and never stalls on a permission prompt:
+
+    node .agents/scripts/pr-wait/wait.mjs --pr <n> --sha <pushed sha>
+
+You are woken when it ends. Its last line is one JSON object; act on `outcome`:
+
+- **`red`**: each entry of `failed` has a `name`, a `kind` and a `url`.
+  - `kind: check`: save the failed job's log to a scratch file outside the repository
+    (`gh api repos/{owner}/{repo}/actions/jobs/<job id>/logs --allow-escape-sequences > <scratch file>`,
+    the job id is the last number of `url`; a log runs to hundreds of KB), read its
+    `##[error]` lines and its end, fix the code.
+  - `kind: blocker`: read the newest verdict comment whose first line names this head
+    (`gh api "repos/{owner}/{repo}/issues/<n>/comments?per_page=100"`), fix its numbered
+    list.
+  - `kind: status`, or a check that failed before running any of your code: a gate's own
+    error, not yours to fix. Call the human.
+  - A blocker that asks a question only the human can answer: call the human.
+
+  Then gate (step 3), commit, push, and start the wait again. Count the rounds: after the
+  third fix push, a further `red` is not fixed; call the human with what is still red.
+- **`green`**: call the human, `PR #<n> ready to merge`. You never merge, never approve.
+- **`timeout`**, **`moved`**, **`closed`**, **`error`**: call the human with the JSON line.
+  `timeout` means nothing decided in 30 minutes; `pending` names what never came,
+  usually `review-verdict` (a reviewer that did not run).
+
+**Calling the human**: one line in your session (the PR number, the outcome, what they
+need to do), and, when `ORCA_CLI_COMMAND` is set (an Orca worktree), the unread dot and a
+caption on the workspace card:
+
+    "$ORCA_CLI_COMMAND" worktree set --worktree active --unread --comment "PR #<n>: <ready to merge | needs you: what>" --json
+
+A failed Orca call is not an error to report. In a cloud session there is no Orca: the
+message is the report.
+
+When you were started by a manager (`do`), the reply to it is the same one line, sent when
+the wait ends green or needs the human.

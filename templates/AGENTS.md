@@ -28,7 +28,8 @@ and ask if it changes the task). Never silently narrow, widen or transform the t
 "while I was in there" changes belong in a new issue.
 
 Dev servers exist for the human's manual testing. Agents never start or stop them, nor any
-other long-running process on their own initiative.
+other long-running process on their own initiative. The one exception is the PR wait
+("After the PR is open"): it runs in the background, reads GitHub and ends by itself.
 
 ## Specs and plans (upstream of the code)
 
@@ -204,6 +205,29 @@ share ONE dev database:
   reviewer blocks a PR that weakens a gate. A genuinely wrong gate is its own PR that the
   human opens and reviews with particular care. Never edit a gate to get a PR green: a
   deleted workflow does not turn a check red, it makes the check disappear.
+
+## After the PR is open (wait, fix, report)
+
+The human does not watch GitHub. After every push to an open PR, the one that opened it
+included, the author waits for the checks and the reviewer and acts on the outcome; `ship`
+step 6 executes this.
+
+- **Wait in the background** with `.agents/scripts/pr-wait/wait.mjs`: it polls GitHub and
+  ends on the first decisive outcome, `red` the moment anything fails.
+- **`red` → fix it yourself**, gate, push, wait again: a failed check from its log, a
+  reviewer `blocker` from the numbered list in the verdict comment on that head. Every
+  rule of this file still holds; a red is never fixed by weakening a test or a gate.
+- **At most three fix rounds per PR**, failed checks and blockers counted together. Red
+  after the third → stop and call the human.
+- **Call the human instead of fixing** when the red is not about the diff (a gate's own
+  error, a workflow that cannot start) or the blocker is a question only the human can
+  answer.
+- **`green` → call the human: the PR is ready to merge.** Green is still not permission to
+  merge.
+- **Anything else** (`timeout`: nothing decided in 30 minutes, usually a reviewer that
+  never came; `moved`, `closed`, `error`) → call the human with what the wait printed.
+- **Calling the human** is a message in your session and, in an Orca worktree, the unread
+  dot and a caption on the workspace card (the command is in `ship`).
 
 ## Tests are the safety net — never game them
 

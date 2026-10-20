@@ -178,9 +178,10 @@ The launch depends on where this session runs. Check once: `orca status --json`.
 
 ## 6. Relay
 
-- A review blocker reaches the worker through the app's auto-fix of review comments or
-  through you: read the verdict comment on the PR head and pass its numbered list to the
-  worker session.
+- The worker waits on its own PR and fixes red checks and review blockers itself, up to
+  three rounds (`AGENTS.md` "After the PR is open"); it reports to you when the PR is
+  green or needs the human. Relay a blocker yourself only when the worker gave up on it or
+  is gone: read the verdict comment on the PR head and pass its numbered list on.
 - **Orca**: wait on the Run's inbox, not on the terminals:
 
       orca orchestration check --wait --types "worker_done,escalation,question" --timeout-ms 900000 --json
@@ -188,13 +189,15 @@ The launch depends on where this session runs. Check once: `orca status --json`.
   Process every message before you acknowledge it (`check --ack <deliveryId>` on the next
   wait). A `question` you answer from `AGENTS.md`, the spec and the plan with
   `orca orchestration reply --id <message id>`; a product decision goes to the human first.
-  An `escalation` goes to the human. A `worker_done` that names an open PR: run
-  `worker-retain` on that dispatch (its worktree stays for blocker fixes) and report the PR.
-  A timeout is a checkpoint, not a failure: read the latest verdict on each open PR head.
-  On a blocker, reuse the worker's terminal (from `worker-show --dispatch <id>`) for a new
-  task, `worker-start --spec '<the verdict's numbered list; fix, gate, push, report>'
-  --terminal <handle> --json`. Once its PR is merged, `worker-release` the dispatch and
-  remove the worktree you created: `orca worktree rm --worktree path:<its path> --json`.
+  An `escalation` goes to the human. A `worker_done` names an open PR the worker has
+  already waited on, green or needing the human: run `worker-retain` on that dispatch (its
+  worktree stays for later fixes) and report the PR. A timeout is a checkpoint, not a
+  failure: read the latest verdict on each open PR head. On a blocker the worker gave up
+  on, once the human has said how to proceed, reuse the worker's terminal (from
+  `worker-show --dispatch <id>`) for a new task, `worker-start --spec '<the verdict's
+  numbered list and the human's answer; fix, gate, push, wait, report>' --terminal <handle>
+  --json`. Once its PR is merged, `worker-release` the dispatch and remove the worktree you
+  created: `orca worktree rm --worktree path:<its path> --json`.
 - Report to the human in one line per PR: `PR #<n> ready, test: <the first step of its
   "How to test by hand">`, and send the full steps when asked. The human tests, approves on
   GitHub and merges; you never approve or merge.
