@@ -1,9 +1,9 @@
 ---
 name: status
-description: Where are we: feature branches against their umbrellas, open PRs by stage with their review verdicts and checks, open issues, answered in the chat in at most fifteen lines. Desktop only. Use when asked for status, progress or what is open.
+description: Where are we: feature branches against their umbrellas, open PRs by stage with their review verdicts and checks, open issues, answered in the chat in at most fifteen lines. Local sessions only (desktop app or Orca). Use when asked for status, progress or what is open.
 ---
 
-Desktop sessions only. This is the one skill that may use `gh pr` and `gh issue` (GraphQL),
+Local sessions only (the desktop app or Orca). This is the one skill that may use `gh pr` and `gh issue` (GraphQL),
 which the cloud proxy blocks; in a cloud session, say so and use `gh api` instead.
 
 Read live, no page, no loop:

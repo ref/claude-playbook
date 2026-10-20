@@ -23,8 +23,9 @@ Four touchpoints, and only four: you answer the manager's planning questions, yo
     5.1, effort high; maximum effort only for an audit.
   - Effort is how long the model thinks per step: medium is normal; high is slower and
     costs roughly 1.5–2×.
-- **Starting a task**: type `/do <n>` in a new desktop session, started from this
-  repository's Local environment (the Worktree checkbox on), on the task model.
+- **Starting a task**: type `/do <n>` in a new session on the task model: in the desktop
+  app, started from this repository's Local environment (the Worktree checkbox on); in
+  Orca, in a new worktree of this repository.
   That session is the manager: it reads `AGENTS.md` and issue #n including its comments,
   decides what the issue needs (a spec and plan first, one question first, or a worker
   right away), and reports back. For substantial work it interviews you, writes the spec and
@@ -33,7 +34,7 @@ Four touchpoints, and only four: you answer the manager's planning questions, yo
 - **Hand-testing**: the manager tells you `PR #n ready, test: …`. The PR body's
   `## How to test by hand` has at most five steps. Pull the branch locally, or open the
   worktree the app offers.
-- **Where are we**: `/status` in any desktop session answers in the chat: feature branches
+- **Where are we**: `/status` in any local session answers in the chat: feature branches
   against their umbrellas, PRs by stage with their verdicts, open issues.
 - **Keeping the playbook current**: `/playbook-update` syncs this repository against the
   playbook (it says "up to date" in seconds when nothing moved); `/playbook-compact`, run
@@ -83,7 +84,8 @@ green routine run does not prove a verdict was written):
 1. Look at the PR's comments for a verdict from a login listed in `REVIEWER_LOGINS`. A
    comment from anybody else, an edited one, or one not shaped as the grammar requires,
    does not count.
-2. Run `/review <n>` yourself in a desktop session. It posts the verdict as a comment (under
+2. Run `/review <n>` yourself in a fresh local session on the PR's head commit (in Orca, a
+   new worktree from the PR's branch; never on the trunk). It posts the verdict as a comment (under
    your own login, which must then be in `REVIEWER_LOGINS`); the status re-evaluates on its
    own.
 3. If it keeps failing, look at the routine's run history in the app.

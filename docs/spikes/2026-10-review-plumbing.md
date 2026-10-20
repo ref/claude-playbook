@@ -42,13 +42,17 @@ posted comment is the value of the repository variable `REVIEWER_LOGINS` (SETUP 
 
 | # | Question | Observed |
 |---|---|---|
-| 1 | The login a cloud push and the PR it opens appear under (**decides whether Required approvals can be 1**) | |
-| 2 | Which identity `gh api` authenticates as in the cloud (the Claude GitHub App, or your login) | |
-| 3 | Which PR events a routine can be triggered on | |
-| 4 | Whether `synchronize` (a push to an open PR) is among them | |
-| 5 | The login of the posted comment (**the value of `REVIEWER_LOGINS`**) | |
-| 6 | Whether the status API call succeeded | |
-| 7 | Time from PR open to comment, and limits consumed (from the session's usage view) | |
+| 1 | The login a cloud push and the PR it opens appear under (**decides whether Required approvals can be 1**) | The owner's own login: every PR opened from a cloud session (`claude/*` head branches) shows it as the author. So Required approvals stays **0**. |
+| 2 | Which identity `gh api` authenticates as in the cloud (the Claude GitHub App, or your login) | The owner's login: the app acts on the owner's behalf, so comments and PRs carry that login, not an app bot. |
+| 3 | Which PR events a routine can be triggered on | Opened and pushed-to PRs, at least (rows 4 and 7). |
+| 4 | Whether `synchronize` (a push to an open PR) is among them | Yes: on one PR, three successive heads each got their own verdict 4–5 minutes after the push, with nobody launching a review. |
+| 5 | The login of the posted comment (**the value of `REVIEWER_LOGINS`**) | The owner's login; `REVIEWER_LOGINS` is set to it. |
+| 6 | Whether the status API call succeeded | Not exercised: the reviewer only comments; the `review-verdict` workflow sets the status with the Actions token. |
+| 7 | Time from PR open to comment, and limits consumed (from the session's usage view) | About 4–5 minutes from PR open (or push) to the verdict comment. Limits not recorded. |
+
+Observed 2026-10-20 in the first adopter's GitHub history (PR authors, commit and comment
+timestamps read through `gh api`), not by the throwaway procedure above: the production
+routine had been running for days and answered the same questions.
 
 ## Observed 2026-10-18
 
@@ -65,8 +69,7 @@ real cloud session (this is the environment, not the table above):
 - A setup script that exits non-zero prevents the session from starting; scripts over about
   five minutes are not cached.
 
-Still open: the login a cloud push and PR appear under (rows 1 and 5), which decides
-Required approvals and `REVIEWER_LOGINS`.
+Rows 1 and 5 were answered on 2026-10-20 (the table above).
 
 ## Decision rule
 
@@ -75,4 +78,4 @@ and 6 show that the posted comment carries the reviewer login and the status cal
 succeeded); otherwise `manager-spawned` (spec 6.1 fallback: the manager starts the reviewer
 as a child session per PR). Task 10's SETUP §5 reads the line below.
 
-Launch mode: pending (routine | manager-spawned)
+Launch mode: routine

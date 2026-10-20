@@ -4,6 +4,12 @@
 machine; sections 4–7 are done once per repository. `<owner>` and `<repo>` below are your
 GitHub login and the repository name.
 
+The manager and local sessions run in one of two apps: the **Claude desktop app** (section 3,
+"Desktop") or **Orca** (section 3, "Orca"). Everything that must hold lives on GitHub and in
+the repository, so the choice changes how sessions start, not the gates. The reviewer
+routine (section 5) and the cloud environment (sections 2 and 6) are claude.ai objects and
+are the same with either app.
+
 ## 1. Identities: one, for now
 
 Decision 2026-10-16: no separate GitHub accounts yet. Everything runs under your own
@@ -81,9 +87,13 @@ the cloud uses `gh api` only.
 `<repo>-reviewer` with the reviewer token, each as a network secret named `GH_TOKEN`, both
 with the same setup script.
 
-## 3. Desktop
+## 3. The app: Desktop or Orca
 
-Sessions use your own `gh auth` login; there is no identity to configure. The app's
+Either way, sessions use your own `gh auth` login; there is no identity to configure.
+
+### Desktop
+
+The app's
 session picker lists **Local environments** and Cloud environments. A local environment is a
 name, the folders (each with a branch selector and a **Worktree** checkbox) and environment
 variables. Make one per repository: the folder is your clone, the branch selector is set to
@@ -96,7 +106,30 @@ uses it) and `reviewer` (`GH_TOKEN` = the reviewer token; used when you run `/re
 hand). Never start a manager or worker session outside the `agent` environment: a PR
 authored by you could not be approved by you.
 
-## 4. The ruleset (per repository)
+### Orca
+
+[Orca](https://www.onorca.dev/) runs Claude Code in a terminal per git worktree. What the
+playbook relies on (observed with Orca 1.4 on the first adopter, 2026-10-20):
+
+- Add the repository as an Orca project. New worktrees are real `git worktree`s (Orca puts
+  them under its own workspaces folder and prefixes their branches with your git user name;
+  `/do` cuts its own `<type>/<short-name>` branch from the base, so that prefix never reaches
+  a PR).
+- Orca copies the gitignored files listed in `.worktreeinclude` into every new worktree, the
+  same file the desktop app reads.
+- **Settings → Experimental → Orchestration: on.** `/do` checks `orca status --json`; when it
+  answers, the manager starts each sub-issue's worker as an Orca orchestration worker in its
+  own new worktree (`orca orchestration worker-start --worktree new-child`), waits for their
+  reports, relays review blockers to the same worker and removes the worktree after the
+  merge. Without it, `/do` falls back to the desktop app's child sessions.
+- Parallel workers run the gate at the same time. A project whose tests share one database
+  needs a test database per worktree (derive its name from the worktree's directory), or
+  its phases must run one after another.
+- Model and effort are set in the session with `/model` and `/effort`; there is no composer
+  picker. A worker gets them as `worker-start --model --effort` (`.agents/routing.md`).
+- A review you start by hand runs in a fresh session on a worktree **at the PR head** (in
+  Orca: a new worktree from the PR's branch), never on the trunk: the `review` skill does not
+  switch refs, and a reviewer on the wrong commit can only post a blocker.
 
 The order matters, because `pr-hygiene`, `test-integrity` and `review-verdict` trigger on
 `pull_request_target` (`review-verdict` also on `issue_comment`): GitHub runs those workflow
@@ -143,10 +176,11 @@ form:
   yourself, the Repository admin role, if you want emergency pushes.)
 - [ ] Target branches: Include default branch (not a name pattern).
 - [ ] Restrict deletions ✓; Block force pushes ✓.
-- [ ] Require a pull request before merging ✓: Required approvals **1 if the spike shows
-  that PR authors are not your login, otherwise 0**; Dismiss stale pull request approvals
-  when new commits are pushed ✓ (only meaningful with 1); Require review from Code Owners
-  ✓ **only together with 1**; Allowed merge methods **Squash** only.
+- [ ] Require a pull request before merging ✓: Required approvals **0**: the spike showed
+  that PRs from cloud sessions are authored by your own login, and GitHub does not let you
+  approve your own PR (1 becomes possible only with the machine users of section 1); Dismiss
+  stale pull request approvals and Require review from Code Owners only together with 1;
+  Allowed merge methods **Squash** only.
 - [ ] Require status checks to pass ✓: Require branches to be up to date before merging ✓;
   add `checks`, `pr-hygiene`, `security`, `test-integrity`, `review-verdict`.
   (`review-verdict` is a commit status, the others are check runs; add each by name. Where
@@ -159,8 +193,8 @@ GitHub's "Update branch" button would both be refused. Their gate is the trunk's
 feature PR.
 
 **Repository variable** `REVIEWER_LOGINS` = the login the reviewer's verdict comments appear
-under (several, comma separated, if there are more). The spike records it for the routine;
-for a `/review` run by hand it is your own login.
+under (several, comma separated, if there are more). With one identity that is your own
+login, for the routine (the spike) and for a `/review` run by hand alike.
 
 ```
 gh variable set REVIEWER_LOGINS --body '<login the verdict comments appear under>'
@@ -180,12 +214,13 @@ the reviewer's gate-integrity check catches edits to a gate.
 
 ## 5. The reviewer routine
 
-Launch mode: **routine**, to be confirmed by the plumbing spike
-(`docs/spikes/2026-10-review-plumbing.md`, its final `Launch mode:` line). Until the spike
-has run, treat this section as provisional; if the spike says `manager-spawned`, use the
-fallback below instead.
+Launch mode: **routine**, confirmed by the plumbing spike
+(`docs/spikes/2026-10-review-plumbing.md`): it fires when a PR opens and on every push, and
+the verdict lands about five minutes later. The routine lives on claude.ai, not in an app:
+it runs the same whether you work in the desktop app or in Orca. While it works, the
+`review-verdict` status is yellow ("waiting for the reviewer").
 
-In the Claude app create a routine for the repository:
+Create a routine for the repository (in the desktop app or on claude.ai):
 
 - Environment: `<repo>` (section 2), the same as the workers use.
 - Trigger: a pull request is opened or marked ready for review, and a push lands on an open
@@ -200,9 +235,9 @@ A routine is a research preview: a green run does not prove a verdict was writte
 `review-verdict` check is what counts, and `docs/RUNBOOK.md` says what to do when it reads
 `no verdict`.
 
-**Fallback, launch mode `manager-spawned`**: the manager session starts the reviewer as a
-child session per PR head (the cloud environment `<repo>`, or a local child session where
-the cloud cannot build the project), with the same prompt and the PR number filled in, once
+**Fallback, for a project the cloud cannot build**: the manager starts the reviewer as a
+local session per PR head (a desktop child session, or in Orca an orchestration worker on a
+new worktree from the PR's branch), with the same prompt and the PR number filled in, once
 when the worker reports the PR and again after every worker push. After the manager is
 gone, you run `/review <n>` by hand.
 
@@ -267,6 +302,10 @@ instead; the playbook's `review` skill is the same in both. *Later (machine user
 section 2 for the two-environment variant.
 
 ## 7. The machine
+
+In Orca: the project added, Orchestration on (section 3, "Orca"), and the
+`core.hooksPath` line below; the model rule below holds with `/model` and `/effort` in place
+of the composer picker.
 
 In the Claude desktop app:
 

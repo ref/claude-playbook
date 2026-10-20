@@ -113,7 +113,7 @@ Also write:
   driver dependency), report it and ask; yes → a `services:` block with a health check in
   `ci.yml` and a job-level `DATABASE_URL`, and the project-adapted `cloud-setup.sh`.
   Require **one test database per working copy**. `.worktreeinclude` copies `.env.local`
-  verbatim into every desktop worktree, so a fixed test database name (a `TEST_DATABASE_URL`
+  verbatim into every worktree (the desktop app's or Orca's), so a fixed test database name (a `TEST_DATABASE_URL`
   there, or one derived from `DATABASE_URL`) is shared by all of them, and parallel test
   runs truncate each other's tables. Check how the project names its test database: derive
   the name from the working copy (for example `<db>_test_<worktree-slug>`) or, if it cannot,

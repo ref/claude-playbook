@@ -414,3 +414,19 @@ owner decided, and the texts now say:
   otherwise "How to test by hand" is the evidence for UI.
 - **A nudge:** a `/do` session on Opus or Fable facing a small, decided task says so in one
   line and continues.
+
+### Decision 2026-10-20: Orca as a second manager app
+
+The owner moved the first adopter's daily work from the desktop app to Orca, a local app that
+runs agents in a git worktree each and exposes an orchestration CLI. The texts now say:
+
+- **Two apps, one workflow.** The manager runs in the desktop app or in Orca. `/do` checks
+  `orca status --json`; when Orca answers, workers are Orca orchestration workers in new
+  worktrees (launch, inbox wait, blocker relay through the same worker, cleanup after the
+  merge), otherwise desktop child sessions as before. The brief, the gates and the reviewer
+  are unchanged. Section 3's non-goal "no scripts that create worktrees" holds: the app, Orca
+  here, owns them.
+- **The reviewer stays a routine** (the plumbing spike, 2026-10-20: it fires on PR open and on
+  every push). It lives on claude.ai, so the choice of app does not touch it.
+- **`review-verdict` is pending, not failure, while no verdict exists**, so a fresh PR shows
+  yellow "waiting for the reviewer" instead of an instant red; pending blocks a merge too.

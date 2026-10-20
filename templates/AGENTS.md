@@ -159,7 +159,7 @@ share ONE dev database:
 - A schema change never rides a feature branch ("Specs and plans").
 - Tests use their OWN database, never the dev one, and its name contains `test` so that a
   misconfigured run fails loudly instead of wiping dev data.
-- **Run the test suite one working copy at a time.** Desktop worktrees copy the same
+- **Run the test suite one working copy at a time.** Worktrees (the desktop app's or Orca's) copy the same
   `.env.local` (`.worktreeinclude`), so unless the project derives a test database name per
   worktree they all share ONE test database, and parallel runs truncate each other's data.
   Until it does, never start the suite while another working copy's run may be in flight
