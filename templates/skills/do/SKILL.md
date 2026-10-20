@@ -164,7 +164,9 @@ The launch depends on where this session runs. Check once: `orca status --json`.
       orca orchestration worker-start --spec '<the filled brief>' --task-title "#<n> <title>" --worktree new-child --name <n>-<short-name> --base-branch origin/<base> --agent claude --model <model id> --effort <level> --json
 
   The brief goes in as one single-quoted argument, without its `/model` line: `--model` and
-  `--effort` replace it; check `launch.effective` in the receipt. Orca prepends a preamble
+  `--effort` replace it; check `launch.effective` in the receipt. Every `'` inside a
+  single-quoted `--spec` (the brief's, the verdict's) is written `'\''`, or the shell ends
+  the argument there. Orca prepends a preamble
   that tells the worker how to report: its `worker_done` summary is the brief's one-line
   report. A `worker-start` that exits non-zero is not relaunched: read its `failedStage`
   and `residualResources` and follow `orca skills get orchestration` (the version-matched
