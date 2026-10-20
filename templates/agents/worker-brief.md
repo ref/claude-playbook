@@ -1,9 +1,10 @@
 # Worker brief
 
 The manager fills this template and starts the worker session with it as the first message.
-It is identical for a cloud session and a local worktree session; only the launch differs.
-The first line is a command pair, taken from `.agents/routing.md`: the worker row, Sonnet 5.5
-at medium, unless the manager states a reason for more on the line below it.
+It is identical for a cloud session, a local worktree session and an Orca worker; only the
+launch differs. The first line is a command pair, taken from `.agents/routing.md`: the worker
+row, Sonnet 5.5 at medium, unless the manager states a reason for more on the line below it.
+An Orca worker gets model and effort as launch flags instead, so its brief drops that line.
 
 ```
 /model <model id> /effort <level>

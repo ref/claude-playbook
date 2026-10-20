@@ -24,4 +24,5 @@ in the call. A worker runs on the row above unless the manager states a reason i
 for raising it; the manager does not lower it.
 
 A cloud session started from the desktop app ignores the model and effort the app was
-given, so the worker brief sets both itself on its first line (`/model`, `/effort`).
+given, so the worker brief sets both itself on its first line (`/model`, `/effort`). An Orca
+worker takes them as `worker-start --model <model id> --effort <level>`.

@@ -145,24 +145,54 @@ Wait for "go".
 Only substantial work reaches this step: a plan with phases. Small work was done in place
 at step 3.
 
-Fill `.agents/worker-brief.md` for each sub-issue and start a child
-session with it as the first message: target **cloud** by default, a local worktree session
-as the fallback (for a project the cloud cannot build). Model and
-effort come from `.agents/routing.md` (a worker is Sonnet 5.5 at medium unless you state a
-reason in the brief); they go on the brief's first line because a cloud
-session ignores what the app was given. Never drop the brief's **Scope** cap: the smallest
-change that satisfies the issue, no refactors, no tests beyond the behavior changed, no
-tooling set up to produce evidence, no subagents, and stop and report when more seems
-needed. Start workers in parallel only where the plan marks
-phases independent; serial otherwise, each after the previous PR is open.
+Fill `.agents/worker-brief.md` for each sub-issue. Model and effort come from
+`.agents/routing.md` (a worker is Sonnet 5.5 at medium unless you state a reason in the
+brief). Never drop the brief's **Scope** cap: the smallest change that satisfies the issue,
+no refactors, no tests beyond the behavior changed, no tooling set up to produce evidence,
+no subagents, and stop and report when more seems needed. Start workers in parallel only
+where the plan marks phases independent; serial otherwise, each after the previous PR is
+open.
 
 Sub-issues whose base is a feature branch are cut from it and their PRs go into it.
+
+The launch depends on where this session runs. Check once: `orca status --json`.
+
+- **Orca** (the command answers `"ok": true`): workers are Orca orchestration workers, each
+  in its own new worktree. Create one Run for this issue, then one worker per sub-issue:
+
+      orca orchestration run-create --objective "#<issue> <title>" --json
+      orca orchestration worker-start --spec '<the filled brief>' --task-title "#<n> <title>" --worktree new-child --name <n>-<short-name> --base-branch origin/<base> --agent claude --model <model id> --effort <level> --json
+
+  The brief goes in as one single-quoted argument, without its `/model` line: `--model` and
+  `--effort` replace it; check `launch.effective` in the receipt. Orca prepends a preamble
+  that tells the worker how to report: its `worker_done` summary is the brief's one-line
+  report. A `worker-start` that exits non-zero is not relaunched: read its `failedStage`
+  and `residualResources` and follow `orca skills get orchestration` (the version-matched
+  guide; load it before your first orchestration command).
+- **Desktop** (no `orca`, or it does not answer): start a child session with the brief as
+  the first message: target **cloud** by default, a local worktree session as the fallback
+  (for a project the cloud cannot build). The brief's first line sets model and effort,
+  because a cloud session ignores what the app was given.
 
 ## 6. Relay
 
 - A review blocker reaches the worker through the app's auto-fix of review comments or
   through you: read the verdict comment on the PR head and pass its numbered list to the
   worker session.
+- **Orca**: wait on the Run's inbox, not on the terminals:
+
+      orca orchestration check --wait --types "worker_done,escalation,question" --timeout-ms 900000 --json
+
+  Process every message before you acknowledge it (`check --ack <deliveryId>` on the next
+  wait). A `question` you answer from `AGENTS.md`, the spec and the plan with
+  `orca orchestration reply --id <message id>`; a product decision goes to the human first.
+  An `escalation` goes to the human. A `worker_done` that names an open PR: run
+  `worker-retain` on that dispatch (its worktree stays for blocker fixes) and report the PR.
+  A timeout is a checkpoint, not a failure: read the latest verdict on each open PR head.
+  On a blocker, reuse the worker's terminal (from `worker-show --dispatch <id>`) for a new
+  task, `worker-start --spec '<the verdict's numbered list; fix, gate, push, report>'
+  --terminal <handle> --json`. Once its PR is merged, `worker-release` the dispatch and
+  remove the worktree you created: `orca worktree rm --worktree path:<its path> --json`.
 - Report to the human in one line per PR: `PR #<n> ready, test: <the first step of its
   "How to test by hand">`, and send the full steps when asked. The human tests, approves on
   GitHub and merges; you never approve or merge.
@@ -177,4 +207,6 @@ Sub-issues whose base is a feature branch are cut from it and their PRs go into 
 
 Lost your context? Resume from the umbrella issue alone: read its checklist, the open PRs
 (`gh api "repos/{owner}/{repo}/pulls?state=open"`), the latest verdict comment on each head,
-and the plan. Spawn only the phases that have no open PR and no merged one.
+and the plan. Spawn only the phases that have no open PR and no merged one. In Orca, also
+list the workers still alive (`orca orchestration worker-list --json`, matched by the task
+title `#<n>`) and do not start a second worker on a sub-issue that already has one.
