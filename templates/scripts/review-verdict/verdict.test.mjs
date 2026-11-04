@@ -295,6 +295,52 @@ test('the workflow posts pending only while no verdict exists, failure otherwise
   assert.equal(workflowText.match(/post_status pending/g)?.length, 1);
 });
 
+// The comments are fetched through `gh api --paginate | jq -s`. Without pipefail a failed later
+// page leaves the pipeline at exit 0 with a truncated list, and a blocker on the lost page
+// loses to an earlier approve. The set line must carry pipefail, and the bracket around
+// verdict.mjs must stay so its non-zero exit reaches the status mapping.
+test('the workflow fails the step when a comments page cannot be fetched', () => {
+  assert.match(workflowText, /\n\s+set -euo pipefail\n/);
+  assert.doesNotMatch(workflowText, /\n\s+set -eu\n/);
+  assert.match(workflowText, /\n\s+set \+e\n\s+result=\$\(node [^\n]*verdict\.mjs[\s\S]*?code=\$\?\n\s+set -e\n/);
+});
+
+// A step that dies after post_status exists must not leave an earlier `success` on the head:
+// an approve, then a blocker comment whose re-evaluation hits an API error, would otherwise keep
+// the green status. An EXIT trap (not ERR: it also covers an unset variable and a cancellation)
+// posts failure unless a status was posted; `posted` is set before the post, so it cannot loop.
+test('the workflow posts failure when the step ends without a posted status', () => {
+  const defined = workflowText.indexOf('post_status() {');
+  const armed = workflowText.search(/\n\s+trap on_exit EXIT\n/);
+  assert.ok(defined !== -1 && armed > defined, 'the EXIT trap is armed after post_status is defined');
+  assert.match(workflowText, /post_status\(\) \{[\s\S]*?> \/dev\/null\n\s+posted=1\n\s+\}/);
+  // The step must still fail: the trap re-exits with the status it was entered with.
+  assert.match(
+    workflowText,
+    /on_exit\(\) \{\n\s+rc=\$\?\n\s+if \[ "\$posted" -eq 0 \]; then\n\s+posted=1\n\s+post_status failure "evaluation failed" \|\| true\n\s+fi\n\s+exit "\$rc"\n\s+\}/,
+  );
+});
+
+// The reviewer's comment is the only trigger: a run per PR push decided nothing and billed a
+// minute. A missing status blocks the merge on its own ("Expected"), so nothing paints a new
+// head yellow. The job's `if:` keeps every non-verdict comment from scheduling a runner, on the
+// created body and on the body an edit replaced; a deleted approve must re-evaluate.
+test('the workflow runs on verdict comments only, never on pull_request events', () => {
+  const on = /\non:\n([\s\S]*?)\n\npermissions:/.exec(workflowText);
+  assert.ok(on, 'the on: block precedes permissions:');
+  assert.doesNotMatch(on[1], /pull_request/);
+  assert.match(on[1], /issue_comment:\n\s+types: \[created, edited, deleted\]/);
+  assert.match(workflowText, /if: >-\n\s+github\.event\.issue\.pull_request &&\n\s+\(startsWith\(github\.event\.comment\.body, 'Reviewed-by:'\) \|\|\n\s+startsWith\(github\.event\.changes\.body\.from, 'Reviewed-by:'\)\)/);
+  assert.doesNotMatch(workflowText, /github\.event\.pull_request/);
+});
+
+// A workflow-level concurrency group is taken before the job's `if:` is read: a plain comment
+// would cancel a running evaluation and then skip itself. The group must sit on the job.
+test('the concurrency group is on the job, keyed by the PR number', () => {
+  assert.doesNotMatch(workflowText, /\nconcurrency:/);
+  assert.match(workflowText, /\n    concurrency:\n      group: review-verdict-\$\{\{ github\.event\.issue\.number \}\}\n      cancel-in-progress: true\n/);
+});
+
 function git(cwd, ...args) {
   const res = spawnSync('git', ['-c', 'commit.gpgsign=false', ...args], {
     cwd,

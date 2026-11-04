@@ -2,20 +2,25 @@ name: review-verdict
 
 # Passes only when a login listed in the repository variable REVIEWER_LOGINS has posted an
 # unedited approve verdict for the PR's head sha, or for an earlier sha whose content
-# against the base is identical (a base-only "Update branch" or a rebase keeps its approve). The result is a commit STATUS named
-# `review-verdict` on the head sha, because a comment that lands later must be able to
-# re-evaluate it; the ruleset requires that status context.
+# against the base is identical (a base-only merge or a rebase keeps its approve). The
+# result is a commit STATUS named `review-verdict` on the head sha, because a comment that
+# lands later must be able to re-evaluate it; the ruleset requires that status context.
+#
+# The only trigger is a verdict comment. A new head carries no status at all until the
+# reviewer posts for it, and GitHub blocks the merge on a required status that was never
+# reported ("Expected"), so no run is spent painting a head yellow: a run per PR push used
+# to cost a billed minute each and decided nothing. The job's `if:` skips every comment
+# that is not a verdict, and a skipped job bills no minutes.
 #
 # The job reports failure only through the status, never through its own exit code, so a
-# failed evaluation does not show up twice. A head with no verdict yet gets `pending`
-# (yellow), not `failure`: the reviewer is still working, and pending blocks a merge too. The job is named `evaluate`, NOT
+# failed evaluation does not show up twice. The job is named `evaluate`, NOT
 # `review-verdict`: a check run with the status's name would always be green and could
 # satisfy a required check of that name in place of the status.
 #
-# Both triggers run the workflow file and the script from the default branch, never from the
-# PR (`pull_request_target`, not `pull_request`): this job holds a token that can set
-# statuses, and it executes no PR code. The PR head is fetched as git data for patch-ids only.
-# Edited comments are ignored by the script, so `edited` and `deleted` events re-evaluate.
+# The workflow file and the script run from the default branch, never from the PR: this job
+# holds a token that can set statuses, and it executes no PR code. The PR head is fetched
+# as git data for patch-ids only. Edited comments are ignored by the script, so `edited`
+# and `deleted` events re-evaluate.
 #
 # "Identical content" is `git diff --full-index <merge-base> <sha> | git patch-id --verbatim`.
 # Never `--stable` or `--unstable`: both strip whitespace, and whitespace carries meaning
@@ -25,8 +30,6 @@ name: review-verdict
 # in .agents/scripts/review-verdict/verdict.test.mjs, which also pins this line.
 
 on:
-  pull_request_target:
-    types: [opened, synchronize, reopened]
   issue_comment:
     types: [created, edited, deleted]
 
@@ -35,14 +38,24 @@ permissions:
   pull-requests: read
   statuses: write
 
-concurrency:
-  group: review-verdict-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: true
-
 jobs:
   evaluate:
-    # Comments on plain issues are not ours.
-    if: github.event_name == 'pull_request_target' || github.event.issue.pull_request
+    # Only a comment whose body starts with `Reviewed-by:` can change the result, because the
+    # script reads nothing else. Created: the body. Deleted: the body it had, so a removed
+    # approve re-evaluates (the head must not keep `success`) and a removed chat comment does
+    # not. Edited: the new body, or the old one (`changes.body.from`), so an edit that turns a
+    # verdict into something else, or something else into a verdict, re-evaluates. startsWith
+    # is case-insensitive here, a harmless superset of the script's own case-sensitive
+    # grammar. Comments on plain issues are not ours.
+    if: >-
+      github.event.issue.pull_request &&
+      (startsWith(github.event.comment.body, 'Reviewed-by:') ||
+      startsWith(github.event.changes.body.from, 'Reviewed-by:'))
+    # The group lives on the job, not the workflow: a workflow-level group is taken before the
+    # `if` is read, so a plain comment would cancel a running evaluation and then skip itself.
+    concurrency:
+      group: review-verdict-${{ github.event.issue.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -52,36 +65,53 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
 
+      # The default branch's .nvmrc, the same Node the project runs; never a pinned major.
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
 
       - name: Evaluate the verdict and set the status
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.issue.number }}
           REVIEWER_LOGINS: ${{ vars.REVIEWER_LOGINS }}
         run: |
-          set -eu
+          set -euo pipefail
           work="$RUNNER_TEMP/review-verdict"
           mkdir -p "$work"
 
           head_sha=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .head.sha)
           base_ref=$(gh api "repos/$REPO/pulls/$PR_NUMBER" --jq .base.ref)
 
+          posted=0
           post_status() {
             gh api -X POST "repos/$REPO/statuses/$head_sha" \
               -f state="$1" -f context=review-verdict -f description="${2:0:140}" > /dev/null
+            posted=1
           }
+
+          # Any way out of the step without a posted status (a failed command, an unset
+          # variable, a cancellation) posts failure, so a head that already carries `success`
+          # cannot keep it. `posted` is set first, so a failing post cannot loop.
+          on_exit() {
+            rc=$?
+            if [ "$posted" -eq 0 ]; then
+              posted=1
+              post_status failure "evaluation failed" || true
+            fi
+            exit "$rc"
+          }
+          trap on_exit EXIT
 
           if [ -z "$REVIEWER_LOGINS" ]; then
             post_status failure "repository variable REVIEWER_LOGINS is not set"
             exit 0
           fi
 
-          # One JSON array of {login, body, createdAt}.
+          # One JSON array of {login, body, createdAt}. pipefail: a failed later page must
+          # fail the step (and so post failure), never pass a truncated list.
           gh api "repos/$REPO/issues/$PR_NUMBER/comments" --paginate \
             --jq '.[] | {login: .user.login, body: .body, createdAt: .created_at, updatedAt: .updated_at}' \
             | jq -s . > "$work/comments.json"
@@ -105,7 +135,7 @@ jobs:
             git cat-file -e "$sha^{commit}" 2>/dev/null || git fetch --quiet origin "$sha" 2>/dev/null || true
             git cat-file -e "$sha^{commit}" 2>/dev/null || return 0
             merge_base=$(git merge-base "origin/$base_ref" "$sha" 2>/dev/null) || return 0
-            id=$(git diff --full-index "$merge_base" "$sha" | git patch-id --verbatim | cut -d' ' -f1)
+            id=$(git diff --full-index "$merge_base" "$sha" | git patch-id --verbatim | cut -d' ' -f1) || return 0
             [ -n "$id" ] || return 0
             jq --arg sha "$sha" --arg id "$id" '.[$sha] = $id' "$work/patch-ids.json" > "$work/patch-ids.tmp"
             mv "$work/patch-ids.tmp" "$work/patch-ids.json"
