@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -154,4 +154,27 @@ test('CLI exits 1 on missing arguments', () => {
   const res = spawnSync(process.execPath, [cli], { encoding: 'utf8' });
   assert.equal(res.status, 1);
   assert.match(res.stderr, /usage/);
+});
+
+test('CLI exits 1 with a readable message when protected.json is unreadable', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gates-'));
+  const file = join(dir, 'protected.json');
+  writeFileSync(file, '{ not json');
+  assert.throws(() => loadConfig(pathToFileURL(file)), /cannot read the protected paths from .*protected\.json/);
+});
+
+// pr-gates.yml calls this script from the default branch; pin the command line it uses, so
+// the Dependabot exemption (`--author`) and the base...head range cannot be trimmed unnoticed.
+const workflowFile = [
+  new URL('../../workflows/pr-gates.yml', import.meta.url),
+  new URL('../../../.github/workflows/pr-gates.yml', import.meta.url),
+].find((url) => existsSync(url));
+
+test('pr-gates.yml runs gates.mjs with base, head, body-file and author', () => {
+  assert.ok(workflowFile, 'pr-gates.yml not found next to the script module');
+  const text = readFileSync(workflowFile, 'utf8');
+  assert.match(
+    text,
+    /node \.\.\/gate\/\.agents\/scripts\/gates-changed\/gates\.mjs \\\n\s+--base "origin\/\$BASE_REF" --head HEAD --body-file "\$RUNNER_TEMP\/pr-body\.md" \\\n\s+--author "\$PR_AUTHOR"/,
+  );
 });

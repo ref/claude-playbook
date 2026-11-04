@@ -17,7 +17,14 @@ const CONFIG_URL = new URL('./protected.json', import.meta.url);
 const DEPENDABOT = 'dependabot[bot]';
 
 export function loadConfig(url = CONFIG_URL) {
-  const { prefixes = [], files = [] } = JSON.parse(readFileSync(url, 'utf8'));
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(url, 'utf8'));
+  } catch (error) {
+    // Fail closed, but say which file: the CLI exits non-zero either way.
+    throw new Error(`gates-changed: cannot read the protected paths from ${url.pathname}: ${error.message}`);
+  }
+  const { prefixes = [], files = [] } = parsed;
   return { prefixes, files: new Set(files) };
 }
 
@@ -81,7 +88,13 @@ function main(argv) {
   ])
     .split(/\r?\n/)
     .filter(Boolean);
-  const result = check({ files, body: readFileSync(args['body-file'], 'utf8'), author: args.author });
+  let result;
+  try {
+    result = check({ files, body: readFileSync(args['body-file'], 'utf8'), author: args.author });
+  } catch (error) {
+    console.error(error.message);
+    return 1;
+  }
   if (!result.ok) console.error(result.message);
   return result.ok ? 0 : 1;
 }

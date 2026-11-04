@@ -79,11 +79,12 @@ jobs:
           code=true
           if [ "$EVENT" = "pull_request" ]; then
             # --no-renames: a move from code into docs must list the code path it left.
-            files=$(git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA")
+            # Fail open, twice: a diff that cannot be computed and anything but a clean
+            # answer from the script both run the checks (an empty list runs them too).
+            files=$(git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA") || files=
             # The rule (and its tests) live in .agents/scripts/ci-scope/scope.mjs: what counts
             # as documentation excludes .agents/, .github/, .claude/skills/ and
-            # .claude/settings.json. Fail open: anything but a clean answer from the script
-            # runs the checks.
+            # .claude/settings.json.
             out=$(printf '%s\n' "$files" | node .agents/scripts/ci-scope/scope.mjs) || out=
             case "$out" in
               code=false) code=false ;;
@@ -180,7 +181,8 @@ jobs:
           REPO: ${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          open=$(gh api "repos/$REPO/issues?labels=master-red&state=open" --jq length)
+          # The issues endpoint lists pull requests too; only an issue counts.
+          open=$(gh api "repos/$REPO/issues?labels=master-red&state=open" --jq '[.[] | select(.pull_request == null)] | length')
           if [ "$open" != "0" ]; then
             echo "A master-red issue is already open; not filing another."
             exit 0

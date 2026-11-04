@@ -51,6 +51,8 @@ jobs:
           persist-credentials: false
 
       # The default branch's .nvmrc, the same Node the project runs; never a pinned major.
+      # The file must exist on the default branch (adoption creates it), or this step fails
+      # on every PR.
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
