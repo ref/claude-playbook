@@ -147,7 +147,17 @@ Anything else v1 installed that the table above replaces is overwritten only und
   clone and never committed). Occupied → Rule 0.
 - Offer squash-only merges and the rest of `docs/SETUP.md` §4's merge settings.
 - A `Dockerfile` in the repository → offer a `docker` entry in `.github/dependabot.yml` in
-  the shape of the other two (weekly, the same cooldowns, label `docker`).
+  the shape of the other two (weekly, the same cooldowns, label `docker`), and offer
+  `workflows/release.yml` (`.github/workflows/release.yml`): the human's release button,
+  which verifies the trunk's commit in full, builds the image once, smokes it, pushes it to
+  GitHub's container registry and tells the host to pull. Say what it costs: the `ADAPT`
+  blocks (the image name, the site URL, the smoke, the deploy webhook) are the human's to
+  fill, the application must serve `/api/version`, and the host must run from the registry
+  image (`docs/RUNBOOK.md` "Releasing" lists the one-time setup). On yes: install it, delete
+  the Build step from `ci.yml` and `build` from the gate lines in `AGENTS.md` and
+  `docs/RUNBOOK.md` (the release builds; a PR proves the code is sane), and keep the
+  RUNBOOK's "Releasing" section. On no: delete that section from the RUNBOOK and leave the
+  Build step in `checks`.
 - Offer pnpm's `minimumReleaseAge: 4320` in `pnpm-workspace.yaml` (pnpm 10.16+; older → say
   so). Name the cost in the offer: pnpm verifies lockfile entries too, so CI fails while any
   entry, a transitive included, is younger than the cutoff. The remedies are waiting or an

@@ -233,6 +233,55 @@ design; a step that only sometimes passes gets stabilised or deleted). A PR that
 flow the suite covers may say "covered by smoke" in "How to test by hand". Put the project's
 own command to run it here.
 
+## Releasing (where `release.yml` is installed; delete this section otherwise)
+
+A merge to the trunk deploys nothing. You decide when the trunk goes to production: GitHub →
+Actions → **Release** → Run workflow on the trunk (leave `version` empty), or
+`gh workflow run release.yml --ref <trunk>`. Agents never press it.
+
+- **What it does**: verifies exactly that commit (the whole gate, plus what only a release
+  needs), builds the image once, starts it and runs the smoke against it, pushes the image
+  to GitHub's container registry as `<number>` and `release`, and creates the tag
+  `v<number>` and a GitHub Release whose notes list the PRs merged since the previous
+  release. About ten minutes.
+- **The number** is the count of commits on the trunk (`git rev-list --count`), so it grows
+  by one per merged PR. A commit that already has its release is refused ("Nothing new
+  since v…").
+- **The run deploys itself.** After the image is pushed, job `deploy` calls the deploy
+  webhook, then polls `<site>/api/version` until it answers the new number (5 minutes).
+  Only then does it create the tag and the Release. A release with no tag and no Release is
+  therefore a release that did not reach the site.
+- **Red means different things by where it happened.** In job `verify` (verification,
+  build, smoke) or `publish` (the image push) production is untouched. In job `deploy`,
+  before the step **Deploy**, it is untouched too (a missing secret, a rollback to a version
+  with no image). From **Deploy** on, production may already run the new image with its
+  migrations applied: open `<site>/api/version`, read the application's log, and roll back
+  if the site is broken. The failing step's error says the same.
+- **Rolling back**: Actions → **Release** → Run workflow, `version` = the build number to
+  return to (the previous release, or any earlier one; `git tag -l 'v*'` lists them). It
+  runs no verification and no build: it points `:release` at that version's image, fires
+  the same webhook and waits for that number. Migrations stay additive for exactly this
+  reason: the older image boots against the newer schema. Moving forward again is a normal
+  release from the trunk, once it has a new commit.
+- **The host builds nothing**: it pulls `<image>:release` from the registry. Its own
+  rebuild or rollback buttons stay available but move one application alone; prefer the
+  workflow.
+
+**One-time setup, before the first release:**
+
+1. The application serves `GET /api/version` as `{"version": …, "sha": …}` from the
+   `APP_VERSION` and `GIT_SHA` build args (`dev` outside an image).
+2. The host runs the application from the registry image `<image>:release` with a
+   read-only registry token, and exposes a deploy webhook (a bodiless POST that makes it
+   pull and restart). Put that URL in the repository secret `DEPLOY_WEBHOOK` (Settings →
+   Secrets and variables → Actions). One secret and one call per application.
+3. Fill the `ADAPT` blocks of `.github/workflows/release.yml`: the image name, the site
+   URL, the smoke, the database the verification needs.
+4. Settings → Billing → Budgets: an Actions budget that does **not** stop usage.
+5. Run the release. The step **Deploy** is green and **Wait for the site** prints
+   `The site runs build <number>.` The first release's notes list every PR ever merged
+   (there is no previous tag); that is expected.
+
 ## Emergency overrides (yours alone — agents may never use them)
 
 - `ALLOW_DIRECT_PUSH=1 git push …`: a direct push to the trunk past the local hook. The

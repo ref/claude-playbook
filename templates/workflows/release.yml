@@ -1,0 +1,362 @@
+name: Release
+
+# OPTIONAL: install only where the project ships a container image (a Dockerfile). Then the
+# Build step leaves ci.yml, and this is the only path to production: the human presses
+# "Run workflow" (or `gh workflow run release.yml --ref {{DEFAULT_BRANCH}}`) when satisfied
+# with the trunk; agents never do. Job `verify` verifies exactly that commit in full, builds
+# the image once and smokes THE IMAGE ITSELF; it runs third-party code, so it has a READ-ONLY
+# token and no registry login. Job `publish` runs none of the project's code: it loads the
+# very image the smoke tested and pushes it to the registry. Job `deploy` tells the host to
+# pull, waits until the site reports the new version, and only then creates the tag and the
+# GitHub Release. Third-party code and a write token never share a job. Residual risk,
+# accepted: the image is built in `verify`, so code that already runs there could still
+# taint it. Red in `verify` or `publish`: production is untouched. Red in `deploy`: see the
+# step that failed (docs/RUNBOOK.md "Releasing").
+#
+# The version is the build number: the count of commits on the trunk (`git rev-list
+# --count`), so it grows by one per squash-merged PR and the same commit always gets the
+# same number. A commit that already has its tag is refused rather than numbered twice.
+#
+# With `version` set, `verify` and `publish` are skipped and `deploy` points `:release` at
+# that older version (a rollback) before the same trigger and probe. Migrations must
+# therefore be additive within a release: an older image boots against the newer schema.
+#
+# Every block marked ADAPT names a project fact: the image, the smoke, the deploy trigger,
+# the version probe. Everything else is the shape.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Empty: a new release from the trunk. A build number: roll back to that release."
+        required: false
+        default: ""
+        type: string
+
+# One release at a time, and never cancelled halfway: a cancelled run could leave an image
+# pushed and no tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+# Nothing by default; every job asks for what it uses.
+permissions:
+  contents: read
+
+env:
+  # ADAPT: the image, under the repository owner on GitHub's container registry. A project
+  # with several images (a web app and a worker) builds and pushes each one; the smoke runs
+  # against the one that serves the site.
+  IMAGE: ghcr.io/<owner>/<app>
+  # ADAPT: where the deployed site answers `GET /api/version` with `{"version": "<build
+  # number>"}` (the route reads APP_VERSION, baked in at build time below).
+  SITE_URL: https://example.com
+
+jobs:
+  verify:
+    # A rollback builds nothing.
+    if: inputs.version == ''
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    # Insurance, not a target: a healthy run is about ten minutes.
+    timeout-minutes: 30
+    # ADAPT: a project whose tests need a database adds the same `services:` block as ci.yml.
+    steps:
+      # A dispatch can pick any ref in the UI; production comes from the trunk only.
+      - name: Refuse any ref but the trunk
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/{{DEFAULT_BRANCH}}" ]; then
+            echo "::error::A release is cut from {{DEFAULT_BRANCH}} only; this run is on $GITHUB_REF."
+            exit 1
+          fi
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The version is the commit count, and the tag check needs every tag.
+          fetch-depth: 0
+          # The token must not sit in .git/config while dependency code runs.
+          persist-credentials: false
+
+      - name: Version
+        id: version
+        run: |
+          version=$(git rev-list --count HEAD)
+          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then
+            echo "::error::Nothing new since v$version: this commit already has its release."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Releasing build $version ($GITHUB_SHA)"
+
+      # Before setup-node, so its `cache:` finds a corepack-managed pnpm (the version comes
+      # from package.json "packageManager").
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # ── The full verification: everything ci.yml runs, plus what only a release needs ──
+      # ADAPT: the same steps as ci.yml's `checks` (minus Build, which the image build below
+      # is), then the slow, deploy-shaped checks ci.yml leaves out: a migration chain and
+      # migrator battery against a fresh database, for example.
+      - name: Lint, knip and format
+        run: |
+          pnpm run lint & lint=$!
+          pnpm run knip & knip=$!
+          pnpm run format:check & format=$!
+          status=0
+          wait "$lint" || { echo "::error::pnpm run lint failed"; status=1; }
+          wait "$knip" || { echo "::error::pnpm run knip failed"; status=1; }
+          wait "$format" || { echo "::error::pnpm run format:check failed"; status=1; }
+          exit "$status"
+
+      - name: Type-check
+        run: pnpm run type-check
+
+      - name: Playbook script tests
+        run: node --test ".agents/scripts/**/*.test.mjs"
+
+      - name: Test
+        run: pnpm test
+
+      # ── The image ──────────────────────────────────────────────────────────────────
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # The image stays on the runner (`load`); nothing is pushed until the smoke has passed.
+      # APP_VERSION and GIT_SHA become part of the image (the Dockerfile declares both as
+      # ARGs and the app serves them on /api/version). The `source` label links the package
+      # to the repository, so the workflow's token may keep pushing to it. No registry login
+      # in this job: it only reads. ADAPT: `target` for a multi-stage Dockerfile, the
+      # project's other build args.
+      - name: Build the image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          load: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
+            ${{ env.IMAGE }}:release
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
+            GIT_SHA=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ── Smoke against the image ────────────────────────────────────────────────────
+      # ADAPT: start the image with the environment a test deployment needs (a disposable
+      # database, test-mode mailer keys), wait until /api/version answers with this build,
+      # then run the project's browser smoke against it. A project without a smoke keeps the
+      # readiness probe: an image that does not boot must not reach the registry.
+      - name: Start the image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker run -d --name app --network host \
+            -e PORT=3000 \
+            "$IMAGE:$VERSION"
+          ready=false
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/api/version > version.json 2> /dev/null; then
+              ready=true
+              break
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' app)" != "true" ]; then break; fi
+            sleep 2
+          done
+          if [ "$ready" != "true" ]; then
+            echo "::error::The image did not become ready; its log follows."
+            docker logs app
+            exit 1
+          fi
+          cat version.json
+          jq -e --arg v "$VERSION" --arg s "$GITHUB_SHA" '.version == $v and .sha == $s' version.json
+
+      # ADAPT: the project's smoke command, pointed at the running image; delete the step if
+      # the project has none.
+      - name: Smoke against the image
+        env:
+          E2E_BASE_URL: http://localhost:3000
+        run: pnpm test:e2e
+
+      - name: Container log
+        if: failure()
+        run: docker logs app
+
+      # ── Hand-off ───────────────────────────────────────────────────────────────────
+      # Everything above passed. The exact image the smoke ran (both tags, shared layers
+      # stored once) goes to `publish` as one artifact: the same bytes, not a rebuild.
+      # Already gzipped, so the artifact itself is not compressed again. One day is plenty.
+      - name: Save the image
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        # pipefail: a failed `docker save` must not leave a truncated archive that `gzip` passes.
+        shell: bash
+        run: |
+          docker save "$IMAGE:$VERSION" "$IMAGE:release" | gzip -1 > image.tar.gz
+          ls -l image.tar.gz
+
+      - name: Upload the image
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image
+          path: image.tar.gz
+          retention-days: 1
+          compression-level: 0
+          if-no-files-found: error
+
+  # Runs no pnpm and no project code, so a write token and the registry login are safe here.
+  publish:
+    needs: verify
+    if: inputs.version == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write # the image
+    env:
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - name: Refuse any ref but the trunk
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/{{DEFAULT_BRANCH}}" ]; then
+            echo "::error::A release is cut from {{DEFAULT_BRANCH}} only; this run is on $GITHUB_REF."
+            exit 1
+          fi
+
+      - name: Download the image
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: image
+
+      - name: Load the image
+        run: docker load < image.tar.gz
+
+      # Right before the push, and after the last thing that reads the artifact.
+      - name: Log in to the registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push the image
+        run: |
+          # The numbered tag first, the moving `release` tag last: a failed push leaves
+          # production's pointer where it was.
+          docker push "$IMAGE:$VERSION"
+          docker push "$IMAGE:release"
+
+  deploy:
+    needs: [verify, publish]
+    # Runs after a green `publish`, or alone for a rollback (where both are skipped).
+    if: ${{ !cancelled() && (needs.publish.result == 'success' || (needs.publish.result == 'skipped' && inputs.version != '')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # the tag and the Release
+      packages: write # the rollback's retag
+    env:
+      VERSION: ${{ needs.verify.outputs.version || inputs.version }}
+    steps:
+      - name: Refuse any ref but the trunk
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/{{DEFAULT_BRANCH}}" ]; then
+            echo "::error::A release is cut from {{DEFAULT_BRANCH}} only; this run is on $GITHUB_REF."
+            exit 1
+          fi
+
+      # An empty VERSION would let the probe below pass vacuously; a rollback's input must be
+      # a build number.
+      - name: Refuse an empty or non-numeric version
+        run: |
+          case "$VERSION" in
+            ''|*[!0-9]*) echo "::error::The version is a build number, digits only (got '$VERSION')."; exit 1 ;;
+          esac
+
+      # ── Rollback: point `:release` at an older version's image ─────────────────────
+      - name: Set up Docker buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: inputs.version != ''
+
+      - name: Log in to the registry
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        if: inputs.version != ''
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Point the release tag at that version
+        if: inputs.version != ''
+        run: |
+          if ! docker buildx imagetools inspect "$IMAGE:$VERSION" > /dev/null; then
+            echo "::error::No image $IMAGE:$VERSION. Production is untouched."
+            exit 1
+          fi
+          docker buildx imagetools create -t "$IMAGE:release" "$IMAGE:$VERSION"
+
+      # ── Deploy ─────────────────────────────────────────────────────────────────────
+      # ADAPT: how the host learns that `:release` moved. The shape here is a per-application
+      # deploy webhook (a bodiless POST whose URL is the repository secret DEPLOY_WEBHOOK),
+      # which is what Dokploy and most panels offer; the host then pulls the image and
+      # restarts. Several applications: one secret and one call each, the site first.
+      - name: Deploy
+        env:
+          HOOK: ${{ secrets.DEPLOY_WEBHOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::DEPLOY_WEBHOOK is not set (docs/RUNBOOK.md, Releasing). Production is untouched; the image is pushed."
+            exit 1
+          fi
+          if ! curl -sS --fail-with-body --connect-timeout 10 --max-time 60 -X POST "$HOOK"; then
+            echo "::error::The deploy webhook refused the call. Production may be half deployed: read /api/version and the application's log, roll back if the site is broken."
+            exit 1
+          fi
+          echo
+
+      # The host pulls and restarts asynchronously: ask the site until it reports this
+      # version. Five minutes. ADAPT: a second probe per further application (a worker's
+      # health endpoint that reports its version).
+      - name: Wait for the site
+        run: |
+          seen=""
+          for _ in $(seq 1 30); do
+            seen=$(curl -fsS --max-time 15 "$SITE_URL/api/version?t=$(date +%s)" 2> /dev/null | jq -r '.version' 2> /dev/null || true)
+            if [ "$seen" = "$VERSION" ]; then
+              echo "The site runs build $VERSION."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::$SITE_URL/api/version did not report build $VERSION within 5 minutes. Production may already run the new image with its migrations applied: read /api/version and the application's log, roll back if the site is broken."
+          exit 1
+
+      # A rollback creates nothing: the tag and the Release of that version already exist.
+      - name: Tag and Release
+        if: inputs.version == ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # `shell: bash` adds pipefail; the default `bash -e` would let `tee` hide a failed
+        # `gh api` and leave a live release with no tag.
+        shell: bash
+        run: |
+          gh api -X POST "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="v$VERSION" \
+            -f target_commitish="$GITHUB_SHA" \
+            -f name="$VERSION" \
+            -F generate_release_notes=true \
+            --jq '"Release: " + .html_url' | tee -a "$GITHUB_STEP_SUMMARY"
