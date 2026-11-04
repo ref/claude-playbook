@@ -16,11 +16,11 @@ function verdict(state, description) {
   return { context: 'review-verdict', state, description, target_url: '' };
 }
 
-const GREEN_RUNS = ['checks', 'pr-hygiene', 'security', 'test-integrity'].map((n) => run(n, 'success'));
+const GREEN_RUNS = ['checks', 'pr-gates'].map((n) => run(n, 'success'));
 const APPROVED = verdict('success', `approve for ${SHA}`);
 
-test('the required list is the five merge gates', () => {
-  assert.deepEqual(REQUIRED, ['checks', 'pr-hygiene', 'security', 'test-integrity', 'review-verdict']);
+test('the required list is the three merge gates', () => {
+  assert.deepEqual(REQUIRED, ['checks', 'pr-gates', 'review-verdict']);
 });
 
 test('every required check passed: green', () => {
@@ -33,7 +33,7 @@ test('every required check passed: green', () => {
 test('green needs every required check, not just one passing run', () => {
   const r = classify({ checkRuns: [run('checks', 'success')], statuses: [APPROVED] });
   assert.equal(r.outcome, 'pending');
-  assert.deepEqual(r.pending, ['pr-hygiene', 'security', 'test-integrity']);
+  assert.deepEqual(r.pending, ['pr-gates']);
 });
 
 test('no review-verdict status yet: pending on it', () => {
@@ -77,7 +77,7 @@ test('a review-verdict failure that is not a verdict is red with kind status', (
 
 test('one failed check is red at once, while the others still run', () => {
   const r = classify({
-    checkRuns: [run('checks', 'failure'), run('security', null), run('pr-hygiene', 'success')],
+    checkRuns: [run('checks', 'failure'), run('pr-gates', null)],
     statuses: [],
   });
   assert.equal(r.outcome, 'red');
@@ -85,7 +85,7 @@ test('one failed check is red at once, while the others still run', () => {
     r.failed.map((f) => [f.name, f.kind, f.url]),
     [['checks', 'check', 'https://ci/checks/1']],
   );
-  assert.deepEqual(r.pending, ['checks', 'security', 'test-integrity', 'review-verdict']);
+  assert.deepEqual(r.pending, ['checks', 'pr-gates', 'review-verdict']);
 });
 
 test('timed_out, startup_failure and action_required are red too', () => {
@@ -119,16 +119,16 @@ test('a re-run that failed replaces the earlier passed run of the same name', ()
 
 test('a cancelled run is neither red nor passed', () => {
   const r = classify({
-    checkRuns: [...GREEN_RUNS.filter((c) => c.name !== 'security'), run('security', 'cancelled', 3)],
+    checkRuns: [...GREEN_RUNS.filter((c) => c.name !== 'pr-gates'), run('pr-gates', 'cancelled', 3)],
     statuses: [APPROVED],
   });
   assert.equal(r.outcome, 'pending');
-  assert.deepEqual(r.pending, ['security']);
+  assert.deepEqual(r.pending, ['pr-gates']);
 });
 
 test('skipped and neutral count as passed', () => {
   const runs = GREEN_RUNS.map((c) =>
-    c.name === 'security' ? run('security', 'skipped') : c.name === 'checks' ? run('checks', 'neutral') : c,
+    c.name === 'pr-gates' ? run('pr-gates', 'skipped') : c.name === 'checks' ? run('checks', 'neutral') : c,
   );
   assert.equal(classify({ checkRuns: runs, statuses: [APPROVED] }).outcome, 'green');
 });

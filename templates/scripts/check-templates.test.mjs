@@ -44,9 +44,12 @@ test('installedPath maps template files to their installed locations', () => {
   const cases = {
     'skills/review/SKILL.md': '.agents/skills/review/SKILL.md',
     'scripts/review-verdict/verdict.mjs': '.agents/scripts/review-verdict/verdict.mjs',
+    'scripts/ci-scope/scope.mjs': '.agents/scripts/ci-scope/scope.mjs',
+    'scripts/gates-changed/protected.json': '.agents/scripts/gates-changed/protected.json',
     'agents/routing.md': '.agents/routing.md',
     'agents/worker-brief.md': '.agents/worker-brief.md',
     'workflows/ci.yml': '.github/workflows/ci.yml',
+    'workflows/pr-gates.yml': '.github/workflows/pr-gates.yml',
     'githooks/pre-push': '.githooks/pre-push',
     'RUNBOOK.md': 'docs/RUNBOOK.md',
     'pull_request_template.md': '.github/pull_request_template.md',

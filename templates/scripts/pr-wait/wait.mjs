@@ -6,8 +6,8 @@
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
-// The five merge gates of AGENTS.md "Getting to the trunk".
-export const REQUIRED = ['checks', 'pr-hygiene', 'security', 'test-integrity', 'review-verdict'];
+// The three merge gates of AGENTS.md "Getting to the trunk".
+export const REQUIRED = ['checks', 'pr-gates', 'review-verdict'];
 
 const FAILED = new Set(['failure', 'timed_out', 'startup_failure', 'action_required']);
 const PASSED = new Set(['success', 'neutral', 'skipped']);

@@ -1,27 +1,45 @@
 name: CI
 
-# Doc-only changes skip this workflow: nothing below reads prose. security.yml carries no
-# path filter on purpose, since secrets land in markdown too.
+# The short check: one `checks` job for every PR push and every code push to the trunk. It
+# runs what reads code and is quick (format, lint, knip, types, the playbook script tests,
+# the tests), about two minutes, so the human merges green PRs in a row. The slow,
+# deploy-shaped checks (a browser smoke, a migration battery) belong to the release
+# workflow where the project has one (the playbook's optional release.yml), which runs them
+# once, on the commit that ships. The Build step below stays until a release runs it.
 #
-# ci-docs.yml is this workflow's no-op twin: it runs on exactly the paths ignored here and
-# reports success under the same job name, so `checks` can be a required status check
-# without doc-only PRs hanging forever. Keep the two path lists exact inverses and the two
-# job names identical. GitHub Actions' YAML parser does not support anchors, so the list is
-# repeated.
+# Why it also runs on the trunk: with "Require branches to be up to date" off, two PRs that
+# are green alone can break the trunk together. A PR run tests the PR merged into its base,
+# so a broken trunk turns every new code PR red; without a run of its own the first signal
+# would be a release, much later. A red push run opens a `master-red` issue (the second job).
+#
+# A documentation-only PR costs about a minute. The job always runs on a PR, so the required
+# check always reports (no twin workflow); its first step lists the changed files, and when
+# every one is documentation the heavy steps are skipped. On a push to the trunk the trigger
+# keeps its path filter: no check is required there, so a skipped run hangs nothing.
+# `.agents/**` is NOT documentation: `.agents/scripts/` is code the gating workflows run.
+#
+# gitleaks runs on PRs only and carries no scope condition: secrets land in markdown too, and
+# every commit on the trunk was scanned on its PR. If it flags a false positive, allowlist it
+# in a committed .gitleaks.toml with a justification comment, never by deleting the step.
 on:
   pull_request:
-    paths-ignore:
-      - "docs/**"
-      # "**.md", not "**/*.md": GitHub's root-inclusive form, so root-level AGENTS.md and
-      # README.md edits are ignored as well.
-      - "**.md"
-      - ".claude/**"
   push:
     branches: ["{{DEFAULT_BRANCH}}"]
-    paths-ignore:
-      - "docs/**"
-      - "**.md"
-      - ".claude/**"
+    # `paths` with negations, not `paths-ignore`: the last matching pattern wins, so the
+    # re-includes below keep what a gating test reads (.agents/, .github/, .claude/skills/,
+    # .claude/settings.json) from being swallowed by "**.md" / ".claude/**". The same rule as
+    # the PR Scope step (.agents/scripts/ci-scope/scope.mjs); its test pins the two together.
+    paths:
+      - "**"
+      - "!docs/**"
+      # "**.md", not "**/*.md": GitHub's root-inclusive form, so root-level AGENTS.md and
+      # README.md edits are ignored as well.
+      - "!**.md"
+      - "!.claude/**"
+      - ".agents/**"
+      - ".github/**"
+      - ".claude/skills/**"
+      - ".claude/settings.json"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -36,48 +54,139 @@ jobs:
     runs-on: ubuntu-latest
     # Insurance against a hung test burning the quota; the default is 360 minutes.
     timeout-minutes: 15
+    # The gitleaks action lists the PR's commits through the API and fails with a 403 without
+    # pull-requests read.
+    permissions:
+      contents: read
+      pull-requests: read
     # A project whose tests need a database adds a `services:` block here.
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history: gitleaks scans the PR's commits (an old leak is as live as a new one
+          # until it is rotated) and the Scope step diffs the PR against its base.
+          fetch-depth: 0
+
+      - name: Scope
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # On a push the trigger's path filter already kept documentation-only pushes out.
+          code=true
+          if [ "$EVENT" = "pull_request" ]; then
+            # --no-renames: a move from code into docs must list the code path it left.
+            files=$(git diff --name-only --no-renames "$BASE_SHA...$HEAD_SHA")
+            # The rule (and its tests) live in .agents/scripts/ci-scope/scope.mjs: what counts
+            # as documentation excludes .agents/, .github/, .claude/skills/ and
+            # .claude/settings.json. Fail open: anything but a clean answer from the script
+            # runs the checks.
+            out=$(printf '%s\n' "$files" | node .agents/scripts/ci-scope/scope.mjs) || out=
+            case "$out" in
+              code=false) code=false ;;
+              *) code=true ;;
+            esac
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "Changed files need the code checks: $code"
+
+      # Before the install on purpose: it is the one step that runs on documentation too, so a
+      # leaked key fails in seconds.
+      - name: Scan for secrets
+        if: github.event_name == 'pull_request'
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Before setup-node, so its `cache:` finds a corepack-managed pnpm (the version comes
       # from package.json "packageManager").
       - name: Enable corepack
+        if: steps.scope.outputs.code == 'true'
         run: corepack enable
 
       - name: Set up Node
+        if: steps.scope.outputs.code == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install
+        if: steps.scope.outputs.code == 'true'
         run: pnpm install --frozen-lockfile
 
       # The same static-gate scripts .githooks/pre-push runs, plus knip, which is CI-only:
       # a mid-work branch legitimately carries a dead export for an hour, and a hook that
-      # blocks pushing WIP teaches people to bypass hooks. Adoption deletes the steps a
-      # repository has no script for; a step left behind for a missing script is a
-      # guaranteed red run.
-      - name: Format
-        run: pnpm run format:check
-      - name: Type-check
-        run: pnpm run type-check
-      - name: Lint
-        run: pnpm run lint
-      - name: Knip
-        run: pnpm run knip
+      # blocks pushing WIP teaches people to bypass hooks. Adoption deletes the steps (and
+      # the lines of this one) a repository has no script for; a step left behind for a
+      # missing script is a guaranteed red run.
+      #
+      # Three independent static checks, concurrently: the slowest one sets the time.
+      - name: Lint, knip and format
+        if: steps.scope.outputs.code == 'true'
+        run: |
+          pnpm run lint & lint=$!
+          pnpm run knip & knip=$!
+          pnpm run format:check & format=$!
+          status=0
+          wait "$lint" || { echo "::error::pnpm run lint failed"; status=1; }
+          wait "$knip" || { echo "::error::pnpm run knip failed"; status=1; }
+          wait "$format" || { echo "::error::pnpm run format:check failed"; status=1; }
+          exit "$status"
 
-      # Build is a step, not its own job: a second runner bills its own spin-up for ~40s of
-      # work. It sits before the tests so a broken build fails cheap.
-      - name: Build
-        run: pnpm run build
+      - name: Type-check
+        if: steps.scope.outputs.code == 'true'
+        run: pnpm run type-check
 
       # The playbook's own script modules (.agents/scripts/**). They are node:test files that
       # the project's test runner does not collect, so nothing else runs them.
       - name: Playbook script tests
+        if: steps.scope.outputs.code == 'true'
         run: node --test ".agents/scripts/**/*.test.mjs"
 
+      # Build is a step, not its own job: a second runner bills its own spin-up for ~40s of
+      # work. It sits before the tests so a broken build fails cheap. Delete this step when
+      # release.yml runs the build: a PR then proves the code is sane and the release proves
+      # the product builds, once, on the commit that ships.
+      - name: Build
+        if: steps.scope.outputs.code == 'true'
+        run: pnpm run build
+
       - name: Test
+        if: steps.scope.outputs.code == 'true'
         run: pnpm test
+
+  # A red trunk is everyone's red: the human does not watch GitHub, so a failed push run
+  # opens an issue the manager picks the fix up from. One open issue per red episode; the
+  # label is `master-red` whatever the trunk is called, and it must exist
+  # (`gh label create master-red --color B60205`). `issues: write` sits on this job alone, so
+  # no PR run carries it; no checkout, `gh` only. It shares the run's concurrency group, so a
+  # merge landing mid-run can cancel it before the issue is filed; accepted: the run, not
+  # the issue, is the signal, and the next red run files it.
+  master-red:
+    needs: checks
+    if: always() && github.event_name == 'push' && needs.checks.result == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - name: Open the master-red issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          open=$(gh api "repos/$REPO/issues?labels=master-red&state=open" --jq length)
+          if [ "$open" != "0" ]; then
+            echo "A master-red issue is already open; not filing another."
+            exit 0
+          fi
+          gh api -X POST "repos/$REPO/issues" \
+            -f title="{{DEFAULT_BRANCH}} red at ${GITHUB_SHA::7}" \
+            -f body="The push run of \`checks\` failed on \`{{DEFAULT_BRANCH}}\` at $GITHUB_SHA: $RUN_URL. Every new code PR is red on the same break until it is fixed. Fix forward in a PR with \`Closes\` on this issue." \
+            -f "labels[]=master-red" \
+            --jq '"Opened " + .html_url'

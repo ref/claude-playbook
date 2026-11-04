@@ -1,0 +1,5 @@
+{
+  "$comment": "The paths pr-gates protects (AGENTS.md, 'The gates are not part of the work'): a PR that touches one needs a non-empty '## Gates changed' section. `prefixes` match the start of a path, `files` match whole paths. A project adds its own gate files here (its test runner's config, for example); this file is itself under .agents/, so it is protected too.",
+  "prefixes": [".github/workflows/", ".githooks/", ".agents/"],
+  "files": ["AGENTS.md", "CLAUDE.md", ".claude/settings.json"]
+}

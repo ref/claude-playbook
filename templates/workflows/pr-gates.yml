@@ -1,0 +1,94 @@
+name: pr-gates
+
+# The gates that read the PR's description, as one required check (they were the workflows
+# pr-hygiene and test-integrity):
+#
+#   1. pr-hygiene: a conventional-commit title (it becomes the squash title on the default
+#      branch), exactly one issue link, the template sections present, and the sections the
+#      human relies on filled. The rules live in .agents/scripts/pr-hygiene/hygiene.mjs and
+#      its tests; Dependabot PRs are checked for the title only.
+#   2. test-integrity: fails when a PR deletes a test file, adds a skip/only marker or removes
+#      assertions, unless the PR body declares it under `## Tests changed`.
+#   3. gates-changed: fails when a PR changes a protected path (AGENTS.md "The gates are not
+#      part of the work"; the list is .agents/scripts/gates-changed/protected.json) unless its
+#      body has a non-empty `## Gates changed`. Dependabot is exempt for .github/workflows/**
+#      only.
+#
+# A separate workflow from ci.yml on purpose: it re-runs on `edited` (the body gets fixed
+# without a new commit), and that must not re-run the test suite. The ruleset requires this
+# job by its name, `pr-gates`.
+#
+# `pull_request_target` runs this workflow file and the scripts from the default branch; the
+# PR is checked out into a second directory and only read as git data, never executed. The
+# title, the body and the author are untrusted input: read through the environment, never
+# interpolated.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  pr-gates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the gate (default branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          path: gate
+
+      - name: Check out the PR as data
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          path: pr
+          persist-credentials: false
+
+      # The default branch's .nvmrc, the same Node the project runs; never a pinned major.
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: gate/.nvmrc
+
+      - name: Check the title and body
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          printf '%s' "$PR_TITLE" > "$RUNNER_TEMP/pr-title.txt"
+          printf '%s' "$PR_BODY" > "$RUNNER_TEMP/pr-body.md"
+          node gate/.agents/scripts/pr-hygiene/hygiene.mjs \
+            --title-file "$RUNNER_TEMP/pr-title.txt" --body-file "$RUNNER_TEMP/pr-body.md" \
+            --author "$PR_AUTHOR"
+
+      # Runs even when the hygiene step failed: the gates used to be separate checks, and one
+      # failure must not hide another (each costs the author a fix round).
+      - name: Check test integrity
+        if: ${{ !cancelled() }}
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          cd pr
+          node ../gate/.agents/scripts/test-integrity/integrity.mjs \
+            --base "origin/$BASE_REF" --head HEAD --body-file "$RUNNER_TEMP/pr-body.md"
+
+      # A PR that changes a protected path must explain it under `## Gates changed`. `checks`
+      # runs the PR's own ci.yml, so only a rule that runs from the default branch can notice
+      # a gate being dropped. Runs even when an earlier step failed, like the one above.
+      - name: Check gates changed
+        if: ${{ !cancelled() }}
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: |
+          cd pr
+          node ../gate/.agents/scripts/gates-changed/gates.mjs \
+            --base "origin/$BASE_REF" --head HEAD --body-file "$RUNNER_TEMP/pr-body.md" \
+            --author "$PR_AUTHOR"
