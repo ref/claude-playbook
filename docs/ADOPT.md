@@ -50,8 +50,9 @@ toolchain is out of scope: say so and stop.
 | `RUNBOOK.md` | `docs/RUNBOOK.md` |
 | `agents/routing.md`, `agents/worker-brief.md` | `.agents/routing.md`, `.agents/worker-brief.md` |
 | `skills/<name>/SKILL.md` for `do`, `ship`, `review`, `status`, `playbook-update`, `playbook-compact` | `.agents/skills/<name>/SKILL.md` |
-| `scripts/review-verdict/`, `scripts/test-integrity/`, `scripts/pr-hygiene/`, `scripts/pr-wait/` (every file, tests included) | `.agents/scripts/<module>/` |
-| `workflows/ci.yml`, `ci-docs.yml`, `pr-hygiene.yml`, `security.yml`, `feature-merge.yml`, `test-integrity.yml`, `review-verdict.yml` | `.github/workflows/` |
+| `scripts/review-verdict/`, `scripts/test-integrity/`, `scripts/pr-hygiene/`, `scripts/gates-changed/`, `scripts/ci-scope/`, `scripts/pr-wait/` (every file, tests included) | `.agents/scripts/<module>/` |
+| `workflows/ci.yml`, `pr-gates.yml`, `review-verdict.yml`, `feature-merge.yml` | `.github/workflows/` |
+| `workflows/release.yml` (optional: only where a `Dockerfile` exists, "Arm the hook, offer the settings") | `.github/workflows/release.yml` |
 | `pull_request_template.md`, `dependabot.yml` | `.github/` |
 | `githooks/pre-push` | `.githooks/pre-push` (executable) |
 | `settings.json` | `.claude/settings.json` (merge, Rule 0) |
@@ -64,11 +65,13 @@ show them the project-adapted version at the end).
 
 Project-owned, installed once and never overwritten: `.agents/cloud-session-start.sh` (it
 starts the cloud session's database, so the project adapts it), `AGENTS.md`, `CLAUDE.md`,
-`docs/RUNBOOK.md`, `.github/workflows/ci.yml`, `.github/dependabot.yml` and the merged
-`.claude/settings.json`. `playbook-update` never overwrites them, but on every run it diffs
-each against the current template (not only against the delta between the lock's commits),
-shows the diff hunk by hunk, and applies a hunk only on the human's yes, merging rather than
-replacing: for `.claude/settings.json` the template owns the `attribution` keys, its own
+`docs/RUNBOOK.md`, `.github/workflows/ci.yml`, `.github/workflows/release.yml` (its `ADAPT`
+blocks), `.agents/scripts/gates-changed/protected.json` (the project adds its own gate
+files), `.github/dependabot.yml` and the merged `.claude/settings.json`. `playbook-update`
+never overwrites them, but on every run it diffs each against the current template (not
+only against the delta between the lock's commits), shows the diff hunk by hunk, and
+applies a hunk only on the human's yes, merging rather than replacing: for
+`.claude/settings.json` the template owns the `attribution` keys, its own
 `permissions.allow` entries and its own hook entries, and the project's other keys, allow
 rules and hooks stay. A run that finds a difference and applies nothing still reports the
 file and the declined hunks.
@@ -82,6 +85,12 @@ Also write:
   is Rule 0 territory.
 - `.gitignore` lines `.claude/worktrees/` and `tmp/` (the reviewer's probe directory), each
   only if missing.
+- The `master-red` label, which the `master-red` job of `ci.yml` files its issue under
+  (`gh label create master-red --color B60205`; a label that exists already is fine).
+- `docs/rules/` is where project rules go (`AGENTS.md` "Project rules"): create nothing
+  there now; when the project's existing `AGENTS.md` or `CLAUDE.md` carries sections of
+  rules about one area of the product, offer to move each into `docs/rules/<topic>.md` with
+  a line in the pointer map, under Rule 0.
 - `.agents/playbook.lock`:
 
       # claude-playbook sync state — machine-written by the playbook-update and
@@ -102,8 +111,12 @@ Also write:
   checking nothing. Apply the same deletions to the gate line in `AGENTS.md` and
   `docs/RUNBOOK.md`. Where a gate tool is missing, offer to add it; never invent a script.
   The `Playbook script tests` step (`node --test` over `.agents/scripts/`) stays; it needs no
-  package script. The `checks` job id stays `checks` in both `ci.yml` and `ci-docs.yml`, and `ci-docs.yml`'s
-  `paths:` stays the exact inverse of `ci.yml`'s `paths-ignore:`.
+  package script. The `Lint, knip and format` step runs its three scripts concurrently:
+  delete the lines of a missing one, keep the step. The `Scope` step and the `master-red`
+  job stay as they are, and the job id stays `checks`: the ruleset matches it by name.
+- **Protected paths**: `.agents/scripts/gates-changed/protected.json` lists what a PR may
+  not change without a `## Gates changed` section. Add the project's own gate files there
+  (its test runner's configuration, a lint configuration the gate reads), nothing else.
 - **Tests**: no test script at all → drop the test step, mark the gate line aspirational and
   say so plainly. Never write a fake passing command.
 - **Node**: `ci.yml` reads `.nvmrc`; create one from the local `node -v` major if absent.
@@ -165,7 +178,7 @@ Anything else v1 installed that the table above replaces is overwritten only und
 
 Then point the human at `docs/SETUP.md` §4–§7: the ruleset (its order matters: where an
 active ruleset still requires v1's check names it must be edited BEFORE the adoption PR can
-merge, and all five checks are required only after a throwaway PR has made them report),
+merge, and all three checks are required only after a throwaway PR has made them report),
 the `REVIEWER_LOGINS` variable, the reviewer routine, the cloud environment, the machine.
 Say the order in one sentence; do not restate the rest.
 
@@ -189,30 +202,32 @@ One line per check: `PASS`, `FAIL` or `SKIP <reason>`, printed verbatim, never s
          | SKIP_PUSH_GATE=1 sh .githooks/pre-push origin no-such-remote
 
 4. `ci.yml`'s steps match `package.json`'s gate scripts in BOTH directions (the
-   `Playbook script tests` step runs `node --test` and is not a package script), `ci-docs.yml`'s
-   job id is `checks` like `ci.yml`'s and its `paths:` is the exact inverse of `ci.yml`'s
-   `paths-ignore:`, and the gate line in `AGENTS.md` and `docs/RUNBOOK.md` is the rendered
-   one: `format:check`, `type-check`, `lint`, `knip`, `build` and `test` in that order,
-   minus the scripts the project lacks, and naming the same scripts as `ci.yml`.
+   `Playbook script tests` step runs `node --test` and is not a package script; the
+   `Scope` step and the `master-red` job are not scripts), its job id is `checks`, and the
+   gate line in `AGENTS.md` and `docs/RUNBOOK.md` is the rendered one: `format:check`,
+   `type-check`, `lint`, `knip`, `build` and `test` in that order, minus the scripts the
+   project lacks (and minus `build` where `release.yml` runs it), naming the same scripts
+   as `ci.yml`. The label `master-red` exists (`gh label list`).
 5. The script modules pass their own tests: `node --test ".agents/scripts/**/*.test.mjs"`.
 6. Merge settings via `gh api repos/{owner}/{repo}`: squash on, merge and rebase off,
-   delete-branch-on-merge on.
+   delete-branch-on-merge on, auto-merge allowed (`allow_auto_merge`).
 7. The ruleset is active: `gh api repos/{owner}/{repo}/rulesets` lists `protect-default`
-   with enforcement `active` (SKIP if the human has not done SETUP §4 yet, and say so). The
-   repository variable `REVIEWER_LOGINS` is set (`gh variable list`).
-8. A throwaway PR with a code change (closed unmerged) shows the five checks `checks`,
-   `pr-hygiene`, `security`, `test-integrity` and `review-verdict` (the last may read "no
-   verdict"). SKIP it until the adoption PR has merged and `REVIEWER_LOGINS` is set, and say
-   so. **Not earlier:** the three gating workflows trigger on `pull_request_target`, which
-   runs the default branch's copy of the workflow files and of `.agents/scripts/`. On the
-   adoption PR itself they do not run at all (no red check and no report), and neither do
-   they on a throwaway PR opened before the merge. Only `checks` and `security` report on
-   the adoption PR. So the human's order (`docs/SETUP.md` §4) is: edit the ruleset to
-   require only `checks` and `security` BEFORE merging, if an active ruleset still requires
-   v1's check names (they never report again, and the merge would stay blocked); merge; set
-   `REVIEWER_LOGINS`; open the throwaway PR so that all five contexts report; then require
-   all five. The same holds when a playbook update changes a script's command line: that PR
-   is judged by the old scripts.
+   with enforcement `active`, and its dump has `strict_required_status_checks_policy`
+   `false` (SKIP if the human has not done SETUP §4 yet, and say so). The repository
+   variable `REVIEWER_LOGINS` is set (`gh variable list`).
+8. A throwaway PR with a code change (closed unmerged) shows `checks` and `pr-gates`, and
+   `review-verdict` once a verdict comment lands (until then the ruleset shows it as
+   "Expected"). SKIP it until the adoption PR has merged and `REVIEWER_LOGINS` is set, and
+   say so. **Not earlier:** `pr-gates` triggers on `pull_request_target` and
+   `review-verdict` on `issue_comment`, which run the default branch's copy of the workflow
+   files and of `.agents/scripts/`. On the adoption PR itself they do not run at all (no
+   red check and no report), and neither do they on a throwaway PR opened before the
+   merge. Only `checks` reports on the adoption PR. So the human's order (`docs/SETUP.md`
+   §4) is: edit the ruleset to require only `checks` BEFORE merging, if an active ruleset
+   still requires earlier check names (they never report again, and the merge would stay
+   blocked); merge; set `REVIEWER_LOGINS`; open the throwaway PR so that `pr-gates`
+   reports and the reviewer posts; then require all three. The same holds when a playbook
+   update changes a script's command line: that PR is judged by the old scripts.
 
 ## Summarize and offer the first commit
 

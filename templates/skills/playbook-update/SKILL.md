@@ -51,20 +51,32 @@ compare it with the installed file. Two classes:
 
 - **Owned by the project, merged hunk by hunk**: `AGENTS.md`, `docs/RUNBOOK.md` and
   `.github/workflows/ci.yml` (they grow with the repository, and `ci.yml` has its steps
-  trimmed to the project's scripts), `.claude/settings.json`, `.github/dependabot.yml` (it
-  may carry extra ecosystems), `.agents/cloud-session-start.sh` (the project adapts it to
-  its services). These are never overwritten and never skipped: **on every run, the fast
-  path included, diff the installed file against the CURRENT rendered template**, not
-  against the delta between the two lock commits. A hunk that landed upstream long ago and
-  never reached the project is exactly what this catches. Show
-  the diff hunk by hunk, say for each what it is and why (the upstream commit message where
-  there is one), and offer to apply it; apply a hunk only on the human's yes for that hunk.
-  Merge, never overwrite: a hunk that is the project's own adaptation (an extra ecosystem,
-  a trimmed step, a service the project starts) is shown as such and not offered for removal.
-  The merge of `.claude/settings.json` is by key: the template owns the `attribution` keys,
-  its own `permissions.allow` entries (an installed entry that an upstream commit replaced,
-  such as an old wildcard rule, is offered for replacement) and its own hook entries; every
+  trimmed to the project's scripts), `.github/workflows/release.yml` where it is installed
+  (its `ADAPT` blocks are the project's), `.agents/scripts/gates-changed/protected.json`
+  (the project adds its own gate files), `.claude/settings.json`,
+  `.github/dependabot.yml` (it may carry extra ecosystems), `.agents/cloud-session-start.sh`
+  (the project adapts it to its services). These are never overwritten and never skipped:
+  **on every run, the fast path included, diff the installed file against the CURRENT
+  rendered template**, not against the delta between the two lock commits. A hunk that
+  landed upstream long ago and never reached the project is exactly what this catches.
+  Show the diff hunk by hunk, say for each what it is and why (the upstream commit message
+  where there is one), and offer to apply it; apply a hunk only on the human's yes for
+  that hunk. Merge, never overwrite: a hunk that is the project's own adaptation (an extra
+  ecosystem, a trimmed step, a service the project starts, a path added to
+  `protected.json`) is shown as such and not offered for removal. The merge of
+  `.claude/settings.json` is by key: the template owns the `attribution` keys, its own
+  `permissions.allow` entries (an installed entry that an upstream commit replaced, such
+  as an old wildcard rule, is offered for replacement) and its own hook entries; every
   other key, allow rule and hook of the project stays.
+
+  **When the diff is near-total** (most of the installed file's lines differ from the
+  template, as when upstream rewrote `ci.yml`), hunk-by-hunk questions are noise: say so,
+  list the project's own adaptations you found in the installed file (the extra services,
+  the trimmed or added steps, the changed commands, the values in `ADAPT` blocks), and
+  offer **whole-file replacement**: write the rendered template on the human's yes, then
+  re-apply each listed adaptation on top of it, showing the result once as one diff
+  against the fresh template. An adaptation that no longer has a place in the new shape
+  (a step the template dropped) is named, not silently lost.
 - **Kept identical to the playbook**: everything else adoption installed: the skills, the
   script modules with their tests, the other workflows, the PR template, the pre-push
   hook, the worker brief and routing files. Compare byte for byte; a difference is drift to
@@ -104,6 +116,6 @@ End with a report that a reader can check against this list:
 - new and removed upstream files and what was decided;
 - the doc-size report.
 
-Checklist before reporting: all six project-owned files were diffed against the current
-template (a missing one is named, not skipped), and none was diffed only against the lock
-delta.
+Checklist before reporting: every project-owned file listed in step 5 (`release.yml` only
+where it is installed) was diffed against the current template (a missing one is named,
+not skipped), and none was diffed only against the lock delta.

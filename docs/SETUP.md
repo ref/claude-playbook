@@ -131,25 +131,27 @@ playbook relies on (observed with Orca 1.4 on the first adopter, 2026-10-20):
   Orca: a new worktree from the PR's branch), never on the trunk: the `review` skill does not
   switch refs, and a reviewer on the wrong commit can only post a blocker.
 
-The order matters, because `pr-hygiene`, `test-integrity` and `review-verdict` trigger on
-`pull_request_target` (`review-verdict` also on `issue_comment`): GitHub runs those workflow
-files, and the scripts they call, from the DEFAULT branch. On the adoption PR itself they do
-not run at all (no red, no report), and until the adoption PR has merged they do not exist
-there. So:
+The order matters, because `pr-gates` triggers on `pull_request_target` and
+`review-verdict` on `issue_comment`: GitHub runs those workflow files, and the scripts they
+call, from the DEFAULT branch. On the adoption PR itself they do not run at all (no red, no
+report), and until the adoption PR has merged they do not exist there. So:
 
-1. **Before merging the adoption PR**, if an active ruleset already requires v1's check names
-   (`checks (type-check, lint, build, test)`, `gitleaks (secret scan)`,
-   `PR body & title hygiene`), edit it to require only `checks` and `security`. The v1 names
-   never report any more, so the PR could not be merged otherwise. Keep enforcement Active;
-   a temporary Repository-admin bypass is the alternative. A repository with no ruleset yet
-   skips this step.
-2. Merge the adoption PR (`checks` and `security` are the two that report on it).
-3. Set the repository variable `REVIEWER_LOGINS` (below).
-4. Open a throwaway PR with a code change, so that all five contexts report at least once:
-   the required-checks picker offers only names it has already seen, and GitHub refuses to
-   save the rule with an empty list. Close it unmerged.
-5. Edit (or create) the ruleset to require all five: `checks`, `pr-hygiene`, `security`,
-   `test-integrity`, `review-verdict`.
+1. **Before merging the adoption PR**, if an active ruleset already requires earlier check
+   names (v1's `checks (type-check, lint, build, test)`, `gitleaks (secret scan)`,
+   `PR body & title hygiene`, or the five of the playbook before the short check:
+   `pr-hygiene`, `security`, `test-integrity`), edit it to require only `checks`. The old
+   names never report any more, so the PR could not be merged otherwise. Keep enforcement
+   Active; a temporary Repository-admin bypass is the alternative. A repository with no
+   ruleset yet skips this step.
+2. Merge the adoption PR (`checks` is the one that reports on it).
+3. Set the repository variable `REVIEWER_LOGINS` (below), and create the `master-red` label
+   if the agent did not (`gh label create master-red --color B60205`).
+4. Open a throwaway PR with a code change, so that `pr-gates` reports and the reviewer
+   posts a verdict (which sets `review-verdict`): the required-checks picker offers only
+   names it has already seen, and GitHub refuses to save the rule with an empty list. Close
+   it unmerged.
+5. Edit (or create) the ruleset to require all three: `checks`, `pr-gates`,
+   `review-verdict`.
 
 Where a setting has a `gh` form it is given; commands survive UI redesigns.
 
@@ -162,11 +164,20 @@ gh api -X PATCH repos/{owner}/{repo} \
   -F squash_merge_commit_title=PR_TITLE -F squash_merge_commit_message=BLANK
 ```
 
-Auto-merge may be on (the merge is your button or auto-merge; the approval, where GitHub
-allows one, is the decision). Also turn on, under Settings → Advanced Security: Dependency
-graph, Dependabot alerts, Dependabot security updates (CVE patches bypass the cooldowns on
+Add `-F allow_auto_merge=true`: auto-merge is your optional click on a PR (the merge is your
+button or auto-merge; the approval, where GitHub allows one, is the decision), and agents
+never enable it. Also turn on, under Settings → Advanced Security: Dependency graph,
+Dependabot alerts, Dependabot security updates (CVE patches bypass the cooldowns on
 purpose) and grouped security updates; on a public repository, Secret scanning and Push
 protection too.
+
+**Actions budget** (Settings → Billing → Budgets, once per account): a budget for Actions
+that does **not** stop usage when the included minutes are gone. With "Stop usage" on, a
+busy month blocks every hosted runner until the next billing cycle, and every PR hangs on
+`checks`; without it the overrun is billed (a few dollars) and you are emailed. The playbook
+is sized to stay inside the included minutes (2 000 a month on Free, 3 000 on Pro, for
+private repositories; public ones are free), and `docs/RUNBOOK.md` "CI shape" in the
+adopting project says what each run bills.
 
 **Branch ruleset** (Settings → Rules → Rulesets → New branch ruleset), in the order of the
 form:
@@ -181,12 +192,19 @@ form:
   approve your own PR (1 becomes possible only with the machine users of section 1); Dismiss
   stale pull request approvals and Require review from Code Owners only together with 1;
   Allowed merge methods **Squash** only.
-- [ ] Require status checks to pass ✓: Require branches to be up to date before merging ✓;
-  add `checks`, `pr-hygiene`, `security`, `test-integrity`, `review-verdict`.
+- [ ] Require status checks to pass ✓: Require branches to be up to date before merging
+  **OFF** (you merge green PRs in a row without an "Update branch" click; the short
+  `checks` run on every push to the trunk catches what two PRs break together, and a red
+  trunk opens a `master-red` issue); add `checks`, `pr-gates`, `review-verdict`.
   (`review-verdict` is a commit status, the others are check runs; add each by name. Where
-  the picker offers a source for a required check, choose GitHub Actions for all five, so
+  the picker offers a source for a required check, choose GitHub Actions for all three, so
   that a status of the same name set by another token does not satisfy the rule.)
 - [ ] Everything else OFF, Copilot code review included.
+
+Check the result rather than the form: `gh api repos/<owner>/<repo>/rulesets` lists
+`protect-default` as `active`, and its dump shows `strict_required_status_checks_policy`
+`false` and the three contexts. The ruleset editor needs an explicit Save click, and a
+ticked-but-unsaved box looks like a saved one.
 
 `feature/*` branches stay outside this ruleset on purpose: the trunk merge into them and
 GitHub's "Update branch" button would both be refused. Their gate is the trunk's, at the
