@@ -19,9 +19,8 @@ Then:
 - **PRs by stage.** For each open PR, in this order: waiting for checks (any required check
   pending or red: name it); waiting for the verdict (`review-verdict` pending or failing:
   quote the status description, for example `no verdict for <sha>`); blocked (the latest
-  verdict is a blocker); ready for you (all five checks green: `checks`, `pr-hygiene`,
-  `security`, `test-integrity`, `review-verdict`), with the first line of its "How to test
-  by hand".
+  verdict is a blocker); ready for you (all three checks green: `checks`, `pr-gates`,
+  `review-verdict`), with the first line of its "How to test by hand".
 - **Open issues.** The ones no umbrella or open PR covers.
 
 Answer in the chat in at most fifteen lines: one line per umbrella (`feature/<topic>: 3 of

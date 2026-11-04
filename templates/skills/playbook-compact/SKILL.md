@@ -43,6 +43,13 @@ exists to interrogate.
   ref); a superseded record shrinks to one line saying what superseded it. Narrative
   history becomes present-tense facts: what IS, not how it got here. A paragraph another
   loaded file already carries becomes a pointer.
+- **Project rules leave `AGENTS.md` for `docs/rules/<topic>.md`.** `AGENTS.md` keeps the
+  workflow (how work moves: branches, PRs, gates, review, routing) and a pointer map; a
+  section of rules about one area of the product (the database, the frontend, email, a
+  worker) moves whole into `docs/rules/<topic>.md`, read on demand by the task that touches
+  that area, with one line in the map saying when to read it. Moving is not losing: the
+  reviewer reads the rules file the map names for what the diff touches. A rule that every
+  session needs before it reads a line of code (a Never line, a gate) stays.
 - **`docs/RUNBOOK.md`.** Recipes only, and only non-derivable ones (the knife above).
 - **`docs/specs/`: keep.** They are the repository's decision record and cost no context
   (read on demand). The hazard is a stale spec read as truth: where later work replaced a

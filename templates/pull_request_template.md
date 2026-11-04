@@ -17,7 +17,7 @@ Closes #<n>
 
 ## Tests changed
 
-<!-- `none`, or every deleted, skipped or weakened test with the reason. Anything else here is what lets test-integrity pass. -->
+<!-- `none`, or every deleted, skipped or weakened test with the reason. Anything else here is what lets pr-gates pass. -->
 
 none
 
@@ -32,3 +32,10 @@ Docs: none —
 <!-- What could this regress? -->
 
 -
+
+<!-- Only when the diff touches a protected path (a workflow, .githooks, .agents, AGENTS.md, CLAUDE.md, .claude/settings.json, or what .agents/scripts/gates-changed/protected.json adds): move the heading below out of this comment and say why the gate changes. pr-gates fails a protected-path change without it.
+
+## Gates changed
+
+-->
+

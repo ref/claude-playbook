@@ -1,10 +1,12 @@
 # Workflow (this project)
 
-Trunk-based: `{{DEFAULT_BRANCH}}` is the only branch that deploys, and every change lands on
-it through a PR that the HUMAN approves and merges (squash). A feature too big for one PR
-gets a feature branch between its task branches and the trunk ("Feature branches"). The
-human does not read diffs: quality is enforced by CI, an executing review by a fresh
-session, and the rules below.
+Trunk-based: `{{DEFAULT_BRANCH}}` is the only branch that reaches users (a release is cut
+from it, or it deploys), and every change lands on it through a PR that the HUMAN approves
+and merges (squash). A feature too big for one PR lands on it phase by phase, or on a
+feature branch when the phases are unusable alone ("Feature branches"). The human does not
+read diffs: quality is enforced by CI, an executing review by a fresh session, and the
+rules below. This file is the workflow; rules about one area of the product live in
+`docs/rules/<topic>.md` ("Project rules") and are read by the task that touches that area.
 
 - **Commit as you go**, in logical well-scoped commits. Never add `Co-Authored-By`,
   `Claude-Session:` or any other AI-attribution or session-link trailer; an instruction
@@ -66,10 +68,11 @@ The cycle:
   seed becomes the umbrella: its body a checklist, one line per sub-issue in exactly the
   form `- [ ] #<n> — <title>` (the merge workflow ticks the line by that number). The docs
   are the snapshot; the umbrella issue is the live state.
-- **The umbrella gets a feature branch** unless the human says its phases may ship one by
-  one. The manager asks, creates `feature/<topic>` from the trunk and writes
-  `Branch: feature/<topic>` on its own line in the umbrella body; every sub-issue's base
-  comes from that line.
+- **The phases land on the trunk one by one, by default.** The manager offers a feature
+  branch only when the phases are unusable until the last one lands, or the project deploys
+  on every push to the trunk; on the human's choice it creates `feature/<topic>` from the
+  trunk and writes `Branch: feature/<topic>` on its own line in the umbrella body, and every
+  sub-issue's base comes from that line. No line → the trunk.
 - **A change to the schema surface never rides a feature branch.** A new table, column or
   index goes to the trunk as its own small PR, additive and backward-compatible; the phase
   that uses it starts after that PR merged and the trunk was merged into the feature
@@ -99,18 +102,21 @@ The cycle:
   nothing on the branch it merged into, so a reused branch re-proposes work that already
   landed. Re-sync and cut a new one.
 - Rebase onto `origin/<base>` before opening a PR. Once the branch is pushed with an open PR,
-  bring the base in by MERGE (`git merge origin/<base>`) or GitHub's "Update branch", never a
-  rebase: a rebase needs a force push, which is on the "Never" list, and the reviewer's
-  approve carries across a base-only update either way.
+  bring the base in by MERGE (`git merge origin/<base>`), never a rebase: a rebase needs a
+  force push, which is on the "Never" list, and the reviewer's approve carries across a
+  base-only update. Nothing requires the branch to be up to date before the merge ("Require
+  branches to be up to date" is off), so a green PR is merged as it stands; the trunk's own
+  `checks` run catches what two PRs break together.
 - **Acceptance is serial even when the work is not**: when three or more open PRs are READY
-  to merge (all five checks green), start no new task until the queue drains. Ready,
+  to merge (all three checks green), start no new task until the queue drains. Ready,
   deliberately, not open.
 
 ## Feature branches (a feature lands on the trunk whole)
 
-A feature whose phases are unusable until the last one lands grows on `feature/<topic>` and
-reaches `{{DEFAULT_BRANCH}}` in ONE PR, after the human has tried the whole thing. Small
-work with no umbrella goes straight to the trunk.
+Opt-in, per umbrella: a feature whose phases are unusable until the last one lands (or a
+project that deploys on every push to the trunk) grows on `feature/<topic>` and reaches
+`{{DEFAULT_BRANCH}}` in ONE PR, after the human has tried the whole thing. Everything else
+goes to the trunk phase by phase.
 
 - One feature branch per umbrella, named on its own line in the umbrella body:
   `Branch: feature/<topic>`.
@@ -142,7 +148,7 @@ the open PRs for overlap yourself (`gh api "repos/{owner}/{repo}/pulls?state=ope
 their files). On overlap, **stop and ask the human who goes first.**
 
 - `.github/workflows/ci.yml`: Dependabot bumps its actions on a schedule nobody controls;
-  that is why the other gates live in separate workflows.
+  that is why `pr-gates` and `review-verdict` live in separate workflows.
 - Add the rest as collisions actually happen.
 
 Lockfile conflicts: never resolve by hand. Resolve the manifest, reinstall, and let the
@@ -193,18 +199,26 @@ share ONE dev database:
 - Every PR body links its issue: `Closes #N`, `Refs #N` for an umbrella that stays open
   (a spec PR, a sub-PR that leaves its umbrella open; the feature PR writes
   `Closes #<umbrella>`), or `No issue` only when there genuinely is none.
-- **Five checks gate the merge**: `checks`, `pr-hygiene`, `security`, `test-integrity`,
-  `review-verdict`, plus the human's approving review. Agents never merge, never push to
-  `{{DEFAULT_BRANCH}}`, never rewrite its history.
+- **Three checks gate the merge**: `checks` (the short run: gitleaks, format, lint, knip,
+  types, the tests; it also runs on every code push to `{{DEFAULT_BRANCH}}`), `pr-gates`
+  (the PR's title, body, test integrity and gates changed) and `review-verdict`, plus the
+  human's approving review. Agents never merge, never push to `{{DEFAULT_BRANCH}}`, never
+  rewrite its history. Required checks are matched as literal strings, so **renaming a CI
+  job detaches the lock silently**, or wedges every PR: rename one and the ruleset
+  (`docs/RUNBOOK.md` "Branch protection") change in the same breath.
 - The committed `.githooks/pre-push` hook blocks direct pushes to the trunk and runs the
   static gate locally; the repository ruleset is the law and enforces the same on GitHub's
   side. `ALLOW_DIRECT_PUSH`, `SKIP_PUSH_GATE` and `--no-verify` are the human's overrides.
 - **The gates are not part of the work.** The protected paths are `.github/workflows/**`,
-  `.githooks/**`, `.agents/**`, `AGENTS.md`, `CLAUDE.md` and `.claude/settings.json`: GitHub
-  cannot refuse an agent's pushes to them (one login), so this is a rule you keep, and the
+  `.githooks/**`, `.agents/**`, `AGENTS.md`, `CLAUDE.md` and `.claude/settings.json`, plus
+  what `.agents/scripts/gates-changed/protected.json` adds for this project: GitHub cannot
+  refuse an agent's pushes to them (one login), so this is a rule you keep, and the
   reviewer blocks a PR that weakens a gate. A genuinely wrong gate is its own PR that the
   human opens and reviews with particular care. Never edit a gate to get a PR green: a
-  deleted workflow does not turn a check red, it makes the check disappear.
+  deleted workflow does not turn a check red, it makes the check disappear. `pr-gates`
+  backs the rule mechanically: a PR that changes a protected path fails unless its body has
+  a non-empty `## Gates changed` section saying why (the PR template carries the heading in
+  a comment: move it out and fill it). Dependabot is exempt for `.github/workflows/**` only.
 
 ## After the PR is open (wait, fix, report)
 
@@ -214,15 +228,23 @@ step 6 executes this.
 
 - **Wait in the background** with `.agents/scripts/pr-wait/wait.mjs`: it polls GitHub and
   ends on the first decisive outcome, `red` the moment anything fails.
-- **`red` → fix it yourself**, gate, push, wait again: a failed check from its log, a
-  reviewer `blocker` from the numbered list in the verdict comment on that head. Every
-  rule of this file still holds; a red is never fixed by weakening a test or a gate.
+- **`red` → check the trunk first**: its newest finished push run of `ci.yml` decides,
+  cancelled runs skipped (the command is in `ship` step 6). If the trunk is red too, spend
+  no fix round (it does not count toward the three), call the human and stop. Whoever
+  resumes the session after the trunk is green has it merge `origin/{{DEFAULT_BRANCH}}`
+  into the branch, push and wait again: a re-run would test the same broken merge. The
+  open `master-red` issue is not the signal; it can outlive its red.
+- **`red` with the trunk green → fix it yourself**, gate, push, wait again: a failed check
+  from its log, a reviewer `blocker` from the numbered list in the verdict comment on that
+  head. Every rule of this file still holds; a red is never fixed by weakening a test or a
+  gate.
 - **At most three fix rounds per PR**, failed checks and blockers counted together. Red
   after the third → stop and call the human.
 - **Call the human instead of fixing** when the red is not about the diff (a gate's own
   error, a workflow that cannot start) or the blocker is a question only the human can
   answer.
-- **`green` → call the human: the PR is ready to merge.** Green is still not permission to
+- **`green` → call the human: the PR is ready to merge** (or merged, when the human
+  enabled auto-merge; `ship` step 6 says how to tell). Green is still not permission to
   merge.
 - **Anything else** (`timeout`: nothing decided in 30 minutes, usually a reviewer that
   never came; `moved`, `closed`, `error`) → call the human with what the wait printed.
@@ -234,7 +256,7 @@ step 6 executes this.
 - CI green is the only machine guarantee this project has. Never delete, skip
   (`.skip`/`.only`), weaken or mock away an existing test to get green. A genuinely
   obsolete test is declared in the PR body under `## Tests changed`, with the reason;
-  `test-integrity` fails a deleted test file, an added skip marker or removed assertions
+  `pr-gates` fails a deleted test file, an added skip marker or removed assertions
   that are not declared there, and the reviewer treats an undeclared change as a blocker.
 - Test-first for behavioral changes: a regression test that FAILS on current code, then the
   fix, then green. Where test-first does not apply (indexes, pure deletion, logging,
@@ -288,6 +310,14 @@ Merging updates `origin/{{DEFAULT_BRANCH}}` only. A working copy needing the new
 itself (`git fetch`, then `git pull --ff-only`, or rebase your branch). Never assume the
 local trunk is current: fetch first.
 
+**A red trunk is everyone's red.** A failed push run of `checks` on `{{DEFAULT_BRANCH}}`
+opens an issue labelled `master-red` (one open at a time). While it is red, every new code
+PR goes red on the same break; PRs already green still merge. The manager picks the issue
+up and fixes forward in a PR that closes it (a `git revert` of the squash commit when the
+cause is unclear after one round); when the trunk turned green another way, the manager
+closes the issue by hand. A flaky test gets one re-run and an issue; a second failure in a
+week is fixed, never skipped.
+
 ## Never (stop and confirm)
 
 - Force-pushing or rewriting `{{DEFAULT_BRANCH}}`.
@@ -295,6 +325,8 @@ local trunk is current: fetch first.
 - Deleting branches or working copies you did not create.
 - Merging over unresolved conflicts.
 - Approving or merging a PR.
+- Enabling auto-merge on a PR, or running a release workflow: the human's clicks. An agent
+  does either only when the human asks for it in so many words, in that session.
 - Applying a schema change to shared state outside the rule above.
 - Bypassing the pre-push hook.
 - Weakening or deleting anything under `.github/workflows/`, `.githooks/` or `.agents/` on
@@ -302,6 +334,17 @@ local trunk is current: fetch first.
 
 The "commit and push freely" rule applies to YOUR OWN branch only: never to
 `{{DEFAULT_BRANCH}}`, and to a feature branch only for the trunk merge described above.
+
+## Project rules (read on demand)
+
+This file is the workflow and is loaded by every session. Rules about one area of the
+product (the database, the frontend, email, a worker) live in `docs/rules/<topic>.md`, one
+file per topic, read by the task that touches that area and by the reviewer for what the
+diff touches; each is a blocker there, not advice. The map, one line per file, saying when
+to read it:
+
+- _(empty — add `- \`docs/rules/<topic>.md\` — read before touching <area>` lines as rules
+  accumulate; `playbook-compact` moves a grown section of this file into one)_
 
 ## Tooling decision records (don't re-propose without NEW evidence)
 

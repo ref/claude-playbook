@@ -113,13 +113,15 @@ before any approach or mockup, and every approach carries its cost.
 - Plan: `docs/plans/YYYY-MM-DD-<topic>.md`, bite-sized tasks grouped into phases, each
   phase sized to one PR, written for an engineer with no context. Say which phases are
   independent of each other.
-- Ask where the phases land, as one of the interview's questions: on a feature branch (the
-  default: the feature reaches users whole, after the human has tried it) or one by one on
-  the trunk (only when every phase is usable alone). A schema change is its own trunk-bound
-  phase, additive and backward-compatible, ordered before the phase that uses it.
+- Where the phases land: on the trunk, one by one, by default (`AGENTS.md` "Specs and
+  plans"). Offer a feature branch, as one of the interview's questions, only when the phases
+  are unusable until the last one lands or the project deploys on every push to the trunk;
+  then the feature reaches users whole, after the human has tried it. A schema change is its
+  own trunk-bound phase, additive and backward-compatible, ordered before the phase that
+  uses it.
 - Commit both in a docs-only PR with `Refs #<issue>`, through a worker or by following the
-  `ship` skill yourself for documents only; the human merges it (the docs twin keeps it
-  green).
+  `ship` skill yourself for documents only; the human merges it (`checks` skips its heavy
+  steps for documents and stays green).
 - File one sub-issue per phase (`gh api -X POST repos/{owner}/{repo}/issues`), each linking
   the spec and carrying `Refs #<issue>`. Edit the seed into the umbrella: a checklist, one
   line per sub-issue in exactly the form `- [ ] #<n> — <title>` (the merge workflow ticks
@@ -204,8 +206,9 @@ The launch depends on where this session runs. Check once: `orca status --json`.
 - A blocker you cannot route (the worker is gone, the verdict is missing for a long time)
   goes to the human with what you tried; a missing verdict is run by hand with `/review
   <pr>` in a fresh session.
-- When the last checklist line is ticked, tell the human the feature is ready for their
-  hand check, and that `/ship` on the feature branch opens the one PR that takes it to the
+- When the last checklist line is ticked: on the trunk, the feature is in; tell the human
+  what to try. With a feature branch, tell the human the feature is ready for their hand
+  check, and that `/ship` on the feature branch opens the one PR that takes it to the
   trunk, with an integration review and the audit ritual before the merge.
 
 ## 7. Restart

@@ -13,11 +13,12 @@ const INSTALL_TIME_PATHS = [
   '.github/CODEOWNERS',
   'docs/specs',
   'docs/plans',
+  'docs/rules',
   '.claude/skills',
   '.agents/audit-external-prompt.md',
 ];
 
-const INSTALL_TIME_DIRS = ['docs/specs', 'docs/plans', '.claude/skills'];
+const INSTALL_TIME_DIRS = ['docs/specs', 'docs/plans', 'docs/rules', '.claude/skills'];
 
 const SINGLE_FILE_MAP = {
   'RUNBOOK.md': 'docs/RUNBOOK.md',

@@ -57,8 +57,13 @@ Four touchpoints, and only four: you answer the manager's planning questions, yo
   Where it does not, the merge click is the decision, and agents still never approve or
   merge: that is a rule in `AGENTS.md`, not something GitHub enforces. Merge is squash only,
   by your button or auto-merge.
-- Five checks must be green: `checks`, `pr-hygiene`, `security`, `test-integrity`,
-  `review-verdict`. The branch must be up to date with the base.
+- Three checks must be green: `checks`, `pr-gates`, `review-verdict`. The branch does not
+  have to be up to date with the base: merge green PRs in a row, no "Update branch" click.
+  Auto-merge ("Allow auto-merge" in the repository settings) is your optional click on a
+  PR; agents never enable it.
+- After a merge, a red push run on the trunk opens a `master-red` issue and the manager
+  fixes it forward; while the trunk is red, no new code PR turns green, and PRs already
+  green still merge.
 - **What the `review-verdict` status description tells you**:
   - `approve for <sha>`: the executing reviewer approved exactly this head.
   - `approve carried from <sha>`: the head differs from the approved one but its patch
@@ -72,8 +77,8 @@ Four touchpoints, and only four: you answer the manager's planning questions, yo
   for the `## Not executed` list: whatever the reviewer could not run is yours to weigh.
 - A feature PR adds one rule: never merge it before you have tried the feature branch
   yourself.
-- Never merge while "Update branch" is visible without re-approving after it; never merge
-  without green checks on the latest commit.
+- Never merge without green checks on the latest commit. The ruleset enforces it on the
+  trunk; into a feature branch (no ruleset there) this ritual is the only guard.
 
 ## When a verdict never lands
 
@@ -90,13 +95,15 @@ green routine run does not prove a verdict was written):
    own.
 3. If it keeps failing, look at the routine's run history in the app.
 
-## Features that take several PRs (feature branches)
+## Features that take several PRs (feature branches — opt-in)
 
-A feature whose pieces are useless until the last one lands grows on `feature/<topic>` and
-reaches the trunk, and so the deploy, in ONE PR after you have tried it. Your part:
+By default the phases of a multi-PR feature land on the trunk one by one. Choose a feature
+branch when the pieces are useless until the last one lands, or when the trunk deploys on
+every push: then the feature grows on `feature/<topic>` and reaches the trunk in ONE PR
+after you have tried it. Your part:
 
-- **Starting one**: file the issue and `/do <n>`. The manager asks whether the phases land
-  on a feature branch (the default) or one by one; it creates `feature/<topic>` and writes
+- **Starting one**: file the issue and `/do <n>`. The manager offers the feature branch
+  when it applies; on your yes it creates `feature/<topic>` and writes
   `Branch: feature/<topic>` into the umbrella. Every sub-issue's PR goes into the feature
   branch; you approve and merge those like any other. Nothing deploys. The sub-issue closes
   and its umbrella line ticks itself on merge.
@@ -147,19 +154,84 @@ can do the other's job:
 
 ## CI shape (what runs, and what it bills)
 
-- Five required checks, each its own workflow: **CI** (`checks`: format, types, lint, knip,
-  build, tests), **PR hygiene** (`pr-hygiene`: title, issue link, template sections),
-  **Security** (`security`: gitleaks), **test-integrity** (deleted, skipped or weakened
-  tests must be declared) and **review-verdict** (a commit status set from the reviewer's
-  comment). Build is a step inside `checks`, not a job of its own: GitHub bills per job
-  rounded up to the minute.
+- Three required checks: **CI** (`checks`: gitleaks, format, lint, knip, type-check, the
+  playbook script tests, build and the test suite, about two minutes), **pr-gates** (one
+  workflow, three steps: pr-hygiene — title, issue link, template sections —,
+  test-integrity — deleted, skipped or weakened tests must be declared — and gates-changed
+  — a PR touching a protected path needs a non-empty `## Gates changed` section) and
+  **review-verdict** (a commit status set from the reviewer's comment). Everything inside
+  `checks` is a STEP, not a job of its own: GitHub bills per job rounded up to the minute.
+  Where a release workflow runs the build and the browser smoke ("Releasing"), the Build
+  step leaves `checks`.
+- **CI also runs on every code push to the trunk**, the same `checks` job, so a break that
+  two green PRs make together shows up at once. If it fails, a second job opens an issue
+  labelled `master-red` (one open at a time); the fix is a PR that closes it. The label
+  must exist (`gh label create master-red --color B60205`).
+- **pr-gates and review-verdict run the trunk's copy** of their workflow and of
+  `.agents/scripts/` (`pull_request_target`, `issue_comment`), never the PR's. A PR that
+  changes one of those scripts is checked by the old one until it merges.
+- **review-verdict runs only when a verdict comment lands**, never on a push. A head the
+  reviewer has not posted for shows the status as "Expected" and cannot be merged; that is
+  the lock, not a stuck run.
 - **Feature merge** runs after a merge, not before: it closes the sub-issues a PR into a
   feature branch names and ticks their umbrella lines. It is never a required check.
-- **A doc-only PR runs no real CI, on purpose.** `ci.yml` ignores `docs/**`, `**.md` and
-  `.claude/**`; its no-op twin reports a green `checks` for exactly those PRs so that a
-  required check never hangs. On a PR touching both docs and code, both run; the real one
-  lands last and wins. A mixed PR that goes green in seconds is worth one look.
-- **Security runs on PRs only.** Every job carries `timeout-minutes`.
+- **A doc-only PR runs `checks` in about a minute, on purpose.** The job always starts on
+  a PR, so the required check always reports; its first step lists the changed files and,
+  when every one is under `docs/`, a `.md` file or under `.claude/`, skips everything but
+  gitleaks. `.agents/`, `.github/`, `.claude/skills/` and `.claude/settings.json` are never
+  documentation, even a `.md` there (`.agents/scripts/ci-scope/`); the push trigger on the
+  trunk follows the same rule and skips a documentation-only push entirely. There is no
+  twin workflow.
+- **gitleaks runs on PRs only.** Every job carries `timeout-minutes`.
+- Budget: GitHub includes 2 000 Actions minutes a month on a private repository on Free,
+  3 000 on Pro; public repositories are free. A code PR push bills ~2–3 minutes and a merge
+  ~2; a release bills ~10. Set a spending budget that does not stop usage ("Branch
+  protection"), so a busy month bills a few dollars instead of stopping CI.
+
+## Branch protection
+
+The `protect-default` ruleset guards the trunk. Read the live state rather than trusting
+the settings page from memory: the ruleset editor needs an explicit **Save changes** click,
+and a ticked-but-unsaved checkbox is visually identical to a saved one:
+
+    gh api repos/{owner}/{repo}/rulesets
+
+The configuration, kept here so it can be rebuilt (section 4 of the playbook's SETUP page
+has the form, field by field):
+
+- Name `protect-default`, Enforcement status **Active**, Bypass list **empty**.
+- Target branches → **Include default branch**.
+- Ticked, and nothing else: Restrict deletions · Block force pushes · Require a pull request
+  before merging (Allowed merge methods → **Squash** only) · Require status checks to pass,
+  with **Require branches to be up to date before merging** UNticked (verify
+  `strict_required_status_checks_policy` is `false` in the ruleset dump).
+- Repository settings → General → Pull Requests → **Allow auto-merge** ticked (verify
+  `gh api repos/{owner}/{repo} --jq .allow_auto_merge` prints `true`).
+- Three required checks, copied verbatim; they are matched as literal strings:
+
+      checks
+      pr-gates
+      review-verdict
+
+- Repository variable `REVIEWER_LOGINS`: the login(s) the reviewer's verdict comments
+  appear under (Settings → Secrets and variables → Actions → Variables).
+- Settings → Billing → Budgets: an Actions budget that does **not** stop usage, so a month
+  over the included minutes never stops CI.
+
+Renaming a CI job silently detaches the lock: the ruleset keeps waiting for the old string,
+and a required check nobody reports never goes red, it waits forever with the merge button
+down. Any job rename is paired with a ruleset edit. An empty bypass list applies to you
+too: no direct pushes to the trunk, which the pre-push hook already enforces locally.
+
+## Smoke (optional)
+
+A browser smoke, where the project has one, runs in the release workflow against the built
+image, never on a PR and never in the local gate or the pre-push hook: it needs a build and
+a browser, and agent pushes stay fast. A red smoke means the app is broken for a real user:
+more serious than a red unit test, not less, and re-running is not a fix (zero retries by
+design; a step that only sometimes passes gets stabilised or deleted). A PR that touches a
+flow the suite covers may say "covered by smoke" in "How to test by hand". Put the project's
+own command to run it here.
 
 ## Emergency overrides (yours alone — agents may never use them)
 
@@ -170,20 +242,23 @@ can do the other's job:
 - Changing a protected path (workflows, `.githooks`, `.agents`, `AGENTS.md`, `CLAUDE.md`,
   `.claude/settings.json`) is a PR you open yourself, or review with particular care when an
   agent opens it: with one identity GitHub cannot refuse the agent's pushes to them, so the
-  protection is the rule in `AGENTS.md`, `CODEOWNERS` and the reviewer's gate-integrity
-  check.
+  protection is the rule in `AGENTS.md`, `CODEOWNERS`, the reviewer's gate-integrity check
+  and the `## Gates changed` section `pr-gates` demands.
 
 ## When something looks broken
 
 | Symptom | First move |
 | --- | --- |
-| A doc-only PR's `checks` is instant | That is the no-op twin; `ci.yml` skips `docs/**` and `**.md` by design |
-| CI red on `security` | Treat as a real leak until proven otherwise; if real, rotate the credential FIRST |
+| A doc-only PR's `checks` takes about a minute | That is the Scope step: every changed file is documentation, so only gitleaks ran. On a PR containing code, open the run and look at the `Scope` step |
+| CI red on the gitleaks step | Treat as a real leak until proven otherwise; if real, rotate the credential FIRST |
 | CI red on the build step | The author fixes it, never you; it fails before the tests, so it fails cheap |
-| `pr-hygiene` red | The title, the issue link or a template section is missing or empty; the author edits the body and it re-runs |
-| `test-integrity` red | The diff deletes or skips a test, or removes assertions, and `## Tests changed` does not say why. The author declares it (or restores the test); you decide whether the reason is good |
+| A `master-red` issue is open | The push run of `checks` failed on the trunk; every new code PR is red on the same break. Fix forward in a PR that closes the issue; close it yourself if the trunk turned green another way |
+| `pr-gates` red on the hygiene step | The title, the issue link or a template section is missing or empty; the author edits the body and it re-runs |
+| `pr-gates` red on the integrity step | The diff deletes or skips a test, or removes assertions, and `## Tests changed` does not say why. The author declares it (or restores the test); you decide whether the reason is good |
+| `pr-gates` red on the gates-changed step | The PR changes a protected path (a workflow, a hook, `.agents/`, `AGENTS.md`, `CLAUDE.md`, `.claude/settings.json`, or what `.agents/scripts/gates-changed/protected.json` adds) and has no non-empty `## Gates changed` section. The author explains the change there; you review it with particular care |
+| `review-verdict` shows "Expected" and nothing else | The reviewer has not posted for this head yet; the status appears with the verdict. Long after that: see "When a verdict never lands" |
 | `review-verdict` missing or `no verdict for <sha>` | See "When a verdict never lands" |
-| `review-verdict` says `repository variable REVIEWER_LOGINS is not set` | Set the repository variable `REVIEWER_LOGINS` to the login the reviewer's verdict comments appear under (SETUP) |
+| `review-verdict` says `repository variable REVIEWER_LOGINS is not set` | Set the repository variable `REVIEWER_LOGINS` (see "Branch protection") |
 | A merged sub-PR left its issue open or its umbrella line unticked | Open the Feature merge run on that PR: the body had no `Closes #N`, or the umbrella line is not in the `- [ ] #N` form. Fix the line by hand this once |
 | A DB-backed test fails in a cloud session with "connection refused" | The database runs only while a session does: the SessionStart hook (`.agents/cloud-session-start.sh`) starts it. Run `service postgresql start` and rerun. Node and pnpm come from the environment's setup script (`/tmp/setup.log` in the session shows what it did) |
 | `ship` refused a sub-task for touching the schema | By design: a schema change goes to the trunk as its own small PR, then the task rebases onto it |

@@ -66,8 +66,9 @@ guard whose helper returns the wrong default. Run the evidence and report what y
 
 1. **Test integrity.** Tests deleted, skipped, weakened, or real behavior newly mocked
    away? Cross-check the diff against the PR's `## Tests changed` section. Any such change
-   the section does not declare and justify is a blocker. The `test-integrity` check
-   catches the mechanical cases; you catch the rest (an assertion loosened in place).
+   the section does not declare and justify is a blocker. The test-integrity step of
+   `pr-gates` catches the mechanical cases; you catch the rest (an assertion loosened in
+   place).
 2. **Gate integrity.** Does the diff touch `.github/workflows/**`, `.githooks/**`,
    `.agents/**`, `AGENTS.md`, `CLAUDE.md` or `.claude/settings.json`? Read those hunks
    line by line; any weakening is a blocker unless the PR asks for it outright and the
@@ -92,17 +93,21 @@ guard whose helper returns the wrong default. Run the evidence and report what y
    blocker only when the combined result would reverse or break something. Behind without
    overlap: not a blocker, say so in one line.
 7. **Hazards.** Secrets or PII in logs, weakened auth or rate limits, schema changes
-   without their generated migration in the same PR, magnet files touched while another PR
-   is open on them. Per diff, when it matches: an added API route (the guard preamble
+   without their generated migration in the same PR, a destructive migration (a column or
+   table dropped, renamed or retyped, `NOT NULL` added to an existing column) in a PR that
+   also changes code beyond the schema and migration files, or that the PR body does not
+   declare (blocker: a rollback swaps the code, not the database, so the previous code must
+   run against the new schema), magnet files touched while another PR is open on them. Per diff, when it matches: an added API route (the guard preamble
    complete), an external URL fetched from data (host allowlist, redirect policy, size
    cap), something re-typed that already exists, orphaned code, catch/fallback logic that
    swallows errors (blocker: a failure nobody sees is worse than a red one), a dependency
    bump (read the release notes, not the diff).
-8. **Project rule sections.** Where `AGENTS.md` has rule sections for what the diff
-   touches, each is a blocker, not advice.
+8. **Project rules.** Where `AGENTS.md`, or a `docs/rules/<topic>.md` its pointer map names
+   for what the diff touches, has rules, each is a blocker, not advice. Read the rules file
+   before the diff.
 9. **PR body quality.** `## How to test by hand` concrete enough for a person who will not
    read the code; if a schema or generated artifact changed, the body says so.
-10. **Docs honesty.** `pr-hygiene` requires a filled `## Docs`; you verify it is true.
+10. **Docs honesty.** `pr-gates` requires a filled `## Docs`; you verify it is true.
     Behavior described in `README.md`, `AGENTS.md`, the RUNBOOK or another page
     changed and that page is not listed: blocker. `Docs: none` with a reason the diff
     contradicts: blocker.

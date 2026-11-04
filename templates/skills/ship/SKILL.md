@@ -88,9 +88,9 @@ Write the body to a scratch file outside the repository, following
 If a PR already exists for this branch, the push updated it: do not open a second one.
 
 **Title:** a conventional commit (`feat(feed): …`); it becomes the squash-commit title and
-`pr-hygiene` fails anything else. A feature ship's title names the feature.
+`pr-gates` fails anything else. A feature ship's title names the feature.
 
-**Body:** write these, do not just fill them. `pr-hygiene` tests them for presence; the
+**Body:** write these, do not just fill them. `pr-gates` tests them for presence; the
 reviewer tests them for truth.
 
 - **Issue link:** `Closes #<n>`, `Refs #<n>` for an umbrella that stays open, or `No issue`.
@@ -105,11 +105,15 @@ reviewer tests them for truth.
   project already has; otherwise `## How to test by hand` is the evidence for UI. Never set
   up a browser or screenshot pipeline for a PR.
 - **`## Tests changed`:** `none`, or every deleted, skipped or weakened test with the
-  reason. `test-integrity` fails a weakened test that is not declared here.
+  reason. `pr-gates` fails a weakened test that is not declared here.
 - **`## Docs`:** `* <file> — <what changed>` bullets for every doc the diff makes stale, or
   `Docs: none — <real reason>`. Anything the human runs or must remember goes in the
   RUNBOOK.
 - **`## Risk nearby`:** what this could regress.
+- **`## Gates changed`:** only when the diff touches a protected path (`AGENTS.md` "The
+  gates are not part of the work"; the list is `.agents/scripts/gates-changed/protected.json`).
+  The template carries the heading inside a comment: move it out and say why the gate
+  changes. `pr-gates` fails a protected-path change without a filled section.
 
 If the diff touches something `AGENTS.md` flags as one-branch-at-a-time (a schema, a
 generated artifact), say so and confirm the generated artifact is in this PR. If test-first
@@ -127,7 +131,22 @@ matches its allow rule and never stalls on a permission prompt:
 
 You are woken when it ends. Its last line is one JSON object; act on `outcome`:
 
-- **`red`**: each entry of `failed` has a `name`, a `kind` and a `url`.
+- **`red`**: before any fix, check the trunk (`AGENTS.md` "After the PR is open"), with the
+  trunk's name you resolved at the top in place of `<trunk>`:
+
+      gh api "repos/{owner}/{repo}/actions/workflows/ci.yml/runs?branch=<trunk>&event=push&per_page=10" --jq '[.workflow_runs[] | select(.conclusion != "cancelled")][0] | .status + " " + (.conclusion // "") + " " + .html_url'
+
+  (`null` printed or a jq error: no finished run exists; go on with the fix rounds below.)
+
+  Cancelled runs are skipped: the `concurrency` group cancels a trunk run when the next
+  merge lands. A status other than `completed` (`queued`, `in_progress`, `waiting`,
+  `pending`): run it again a minute later until it is. `completed failure`: the trunk is
+  red, so call the human with `PR #<n> red because the trunk is red: <run url>` and stop;
+  no fix round is spent. Resumed after the trunk is green: `git merge origin/<trunk>`,
+  gate, push, wait again, still no fix round. `completed success`: the fix rounds below.
+  The open `master-red` issue is not the signal; it can outlive its red.
+
+  Each entry of `failed` has a `name`, a `kind` and a `url`.
   - `kind: check`: save the failed job's log to a scratch file outside the repository
     (`gh api repos/{owner}/{repo}/actions/jobs/<job id>/logs --allow-escape-sequences > <scratch file>`,
     the job id is the last number of `url`; a log runs to hundreds of KB), read its
@@ -141,7 +160,11 @@ You are woken when it ends. Its last line is one JSON object; act on `outcome`:
 
   Then gate (step 3), commit, push, and start the wait again. Count the rounds: after the
   third fix push, a further `red` is not fixed; call the human with what is still red.
-- **`green`**: call the human, `PR #<n> ready to merge`. You never merge, never approve.
+- **`green`**: call the human. Report `PR #<n> merged` when the human enabled auto-merge and
+  the PR is merged (`gh api repos/{owner}/{repo}/pulls/<n> --jq .merged` prints `true`), else
+  `PR #<n> ready to merge`. A merge deploys nothing where the project releases by hand, so
+  the report never says "deployed". You never merge, never approve, never enable
+  auto-merge: that is the human's optional click.
 - **`timeout`**, **`moved`**, **`closed`**, **`error`**: call the human with the JSON line.
   `timeout` means nothing decided in 30 minutes; `pending` names what never came,
   usually `review-verdict` (a reviewer that did not run).
